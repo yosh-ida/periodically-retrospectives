@@ -1,0 +1,119 @@
+export type AppRoute =
+  | { name: "dashboard" }
+  | { name: "theme-new" }
+  | { name: "theme-detail"; themeId: string }
+  | { name: "theme-edit"; themeId: string }
+  | { name: "not-found" };
+
+type Listener = () => void;
+
+const listeners = new Set<Listener>();
+let cachedPathname = "";
+let cachedRoute: AppRoute = { name: "dashboard" };
+
+function normalizePathname(pathname: string) {
+  if (pathname.length > 1 && pathname.endsWith("/")) {
+    return pathname.slice(0, -1);
+  }
+
+  return pathname || "/";
+}
+
+export function parseRoute(pathname: string): AppRoute {
+  const normalizedPathname = normalizePathname(pathname);
+
+  if (normalizedPathname === "/") {
+    return { name: "dashboard" };
+  }
+
+  if (normalizedPathname === "/themes/new") {
+    return { name: "theme-new" };
+  }
+
+  const editMatch = normalizedPathname.match(/^\/themes\/([^/]+)\/edit$/);
+  if (editMatch) {
+    return { name: "theme-edit", themeId: decodeURIComponent(editMatch[1]) };
+  }
+
+  const detailMatch = normalizedPathname.match(/^\/themes\/([^/]+)$/);
+  if (detailMatch) {
+    return { name: "theme-detail", themeId: decodeURIComponent(detailMatch[1]) };
+  }
+
+  return { name: "not-found" };
+}
+
+export function getRouteSnapshot(pathname: string) {
+  const normalizedPathname = normalizePathname(pathname);
+
+  if (normalizedPathname !== cachedPathname) {
+    cachedPathname = normalizedPathname;
+    cachedRoute = parseRoute(normalizedPathname);
+  }
+
+  return cachedRoute;
+}
+
+export function buildPath(route: Exclude<AppRoute, { name: "not-found" }>) {
+  switch (route.name) {
+    case "dashboard":
+      return "/";
+    case "theme-new":
+      return "/themes/new";
+    case "theme-detail":
+      return `/themes/${encodeURIComponent(route.themeId)}`;
+    case "theme-edit":
+      return `/themes/${encodeURIComponent(route.themeId)}/edit`;
+  }
+}
+
+export function formatRouteTitle(route: AppRoute) {
+  switch (route.name) {
+    case "dashboard":
+      return "ダッシュボード";
+    case "theme-new":
+      return "新しい反省点";
+    case "theme-detail":
+      return "反省点の詳細";
+    case "theme-edit":
+      return "反省点を編集";
+    case "not-found":
+      return "ページが見つかりません";
+  }
+}
+
+function emitChange() {
+  for (const listener of listeners) {
+    listener();
+  }
+}
+
+export function navigate(route: Exclude<AppRoute, { name: "not-found" }>) {
+  const nextPath = buildPath(route);
+  if (window.location.pathname !== nextPath) {
+    window.history.pushState({}, "", nextPath);
+    emitChange();
+  }
+}
+
+export function replaceRoute(route: Exclude<AppRoute, { name: "not-found" }>) {
+  const nextPath = buildPath(route);
+  window.history.replaceState({}, "", nextPath);
+  emitChange();
+}
+
+export function getCurrentRoute() {
+  return getRouteSnapshot(window.location.pathname);
+}
+
+export function subscribeToRouteChanges(listener: Listener) {
+  listeners.add(listener);
+
+  const handlePopState = () => listener();
+  window.addEventListener("popstate", handlePopState);
+
+  return () => {
+    listeners.delete(listener);
+    window.removeEventListener("popstate", handlePopState);
+  };
+}

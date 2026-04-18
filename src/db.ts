@@ -1,13 +1,16 @@
 import Dexie, { type EntityTable } from "dexie";
 
 import {
+  archiveReflectionTheme,
   createEntityId,
   createNotificationSettings,
   createReflectionReview,
   createReflectionTheme,
+  updateReflectionTheme,
   type NotificationSettings,
   type ReflectionReview,
   type ReflectionTheme,
+  type ThemeInput,
 } from "./domain.ts";
 
 export const DATABASE_NAME = "periodicallyRetrospectives";
@@ -30,6 +33,59 @@ class PeriodicallyRetrospectivesDatabase extends Dexie {
 }
 
 export const db = new PeriodicallyRetrospectivesDatabase();
+
+export function createNotificationSettingsPlaceholder(now = Date.now()) {
+  return createNotificationSettings(undefined, now);
+}
+
+async function assertNotificationSettingsExists(notificationSettingsId: string | null) {
+  if (notificationSettingsId === null) {
+    return;
+  }
+
+  const settings = await db.notificationSettings.get(notificationSettingsId);
+  if (!settings) {
+    throw new Error("notification settings reference is invalid");
+  }
+}
+
+export async function createNotificationSettingsReference(now = Date.now()) {
+  const settings = createNotificationSettingsPlaceholder(now);
+  await db.notificationSettings.put(settings);
+  return settings;
+}
+
+export async function createTheme(input: ThemeInput, now = Date.now()) {
+  await assertNotificationSettingsExists(input.notificationSettingsId ?? null);
+
+  const theme = createReflectionTheme(input, now);
+  await db.themes.put(theme);
+  return theme;
+}
+
+export async function updateTheme(themeId: string, input: ThemeInput, now = Date.now()) {
+  const existingTheme = await db.themes.get(themeId);
+  if (!existingTheme) {
+    throw new Error("theme not found");
+  }
+
+  await assertNotificationSettingsExists(input.notificationSettingsId ?? null);
+
+  const updatedTheme = updateReflectionTheme(existingTheme, input, now);
+  await db.themes.put(updatedTheme);
+  return updatedTheme;
+}
+
+export async function archiveTheme(themeId: string, now = Date.now()) {
+  const existingTheme = await db.themes.get(themeId);
+  if (!existingTheme) {
+    throw new Error("theme not found");
+  }
+
+  const archivedTheme = archiveReflectionTheme(existingTheme, now);
+  await db.themes.put(archivedTheme);
+  return archivedTheme;
+}
 
 export async function seedPhase1DemoData(now = Date.now()) {
   const notificationSettings = createNotificationSettings(

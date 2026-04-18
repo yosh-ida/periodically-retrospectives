@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "node ./node_modules/vite/bin/vite.js --host 0.0.0.0",
     "build": "node ./node_modules/typescript/bin/tsc -b && node ./node_modules/vite/bin/vite.js build",
-    "test": "node --experimental-strip-types tests/phase1-domain.test.ts",
+    "test": "node --experimental-strip-types tests/run.ts",
     "preview": "node ./node_modules/vite/bin/vite.js preview --host 0.0.0.0 --port 4173",
     "check": "node ./node_modules/typescript/bin/tsc -b && node ./node_modules/vite/bin/vite.js build"
   },
