@@ -1,0 +1,30 @@
+{
+  "name": "periodically-retrospectives",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "dev": "node ./node_modules/vite/bin/vite.js --host 0.0.0.0",
+    "build": "node ./node_modules/typescript/bin/tsc -b && node ./node_modules/vite/bin/vite.js build",
+    "test": "node --experimental-strip-types tests/phase1-domain.test.ts",
+    "preview": "node ./node_modules/vite/bin/vite.js preview --host 0.0.0.0 --port 4173",
+    "check": "node ./node_modules/typescript/bin/tsc -b && node ./node_modules/vite/bin/vite.js build"
+  },
+  "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
+    "@mui/material": "^7.0.2",
+    "dexie": "^4.0.11",
+    "dexie-react-hooks": "^1.1.7",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "zustand": "^5.0.3"
+  },
+  "devDependencies": {
+    "@types/react": "^19.1.2",
+    "@types/react-dom": "^19.1.2",
+    "@vitejs/plugin-react": "^4.4.1",
+    "typescript": "^5.8.3",
+    "vite": "^6.3.5"
+  }
+}
