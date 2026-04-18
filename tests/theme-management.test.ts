@@ -35,18 +35,18 @@ run("createReflectionTheme creates an active theme with trimmed required fields"
 
   const theme = createReflectionTheme(
     {
-      issue: "  会議で前提説明が長くなる  ",
-      cause: "  相手の知りたい範囲を確かめる前に全部話してしまう  ",
-      goal: "  先に結論を言ってから必要な背景を足す  ",
+      issue: "  朝会で背景説明が長くなってしまう  ",
+      cause: "  前提を全部共有しないと不安になる  ",
+      goal: "  先に結論を言ってから必要な補足だけを足す  ",
     },
     now,
   );
 
   assert.deepEqual(theme, {
     id: "theme-1700000000000-0",
-    issue: "会議で前提説明が長くなる",
-    cause: "相手の知りたい範囲を確かめる前に全部話してしまう",
-    goal: "先に結論を言ってから必要な背景を足す",
+    issue: "朝会で背景説明が長くなってしまう",
+    cause: "前提を全部共有しないと不安になる",
+    goal: "先に結論を言ってから必要な補足だけを足す",
     notificationSettingsId: null,
     isArchived: false,
     createdAt: now,
@@ -57,8 +57,8 @@ run("createReflectionTheme creates an active theme with trimmed required fields"
 run("updateReflectionTheme rewrites editable fields and keeps immutable ids", () => {
   const original = createReflectionTheme(
     {
-      issue: "話が長い",
-      cause: "前提説明から入る",
+      issue: "説明が長い",
+      cause: "背景から話し始める",
       goal: "先に結論を言う",
     },
     10,
@@ -67,9 +67,9 @@ run("updateReflectionTheme rewrites editable fields and keeps immutable ids", ()
   const updated = updateReflectionTheme(
     original,
     {
-      issue: "  話の入りが長い  ",
-      cause: "  結論より背景を先に話す  ",
-      goal: "  最初の一文で論点を出す  ",
+      issue: "  説明の入りが長い  ",
+      cause: "  補足を先に出しすぎる  ",
+      goal: "  最初の一言を先に置く  ",
       notificationSettingsId: "notification-settings-1",
     },
     20,
@@ -77,9 +77,9 @@ run("updateReflectionTheme rewrites editable fields and keeps immutable ids", ()
 
   assert.deepEqual(updated, {
     ...original,
-    issue: "話の入りが長い",
-    cause: "結論より背景を先に話す",
-    goal: "最初の一文で論点を出す",
+    issue: "説明の入りが長い",
+    cause: "補足を先に出しすぎる",
+    goal: "最初の一言を先に置く",
     notificationSettingsId: "notification-settings-1",
     updatedAt: 20,
   });
@@ -88,9 +88,9 @@ run("updateReflectionTheme rewrites editable fields and keeps immutable ids", ()
 run("archiveReflectionTheme marks the theme archived without touching history references", () => {
   const original = createReflectionTheme(
     {
-      issue: "考える前に説明する",
-      cause: "焦って埋めようとする",
-      goal: "沈黙を怖がらず確認する",
+      issue: "会議で話しすぎる",
+      cause: "安心のために全部説明する",
+      goal: "要点から話す",
       notificationSettingsId: "notification-settings-1",
     },
     100,
@@ -110,7 +110,7 @@ run("createReflectionTheme rejects missing required fields", () => {
       createReflectionTheme({
         issue: " ",
         cause: "原因",
-        goal: "ゴール",
+        goal: "目標",
       }),
     /issue, cause, goal are required/,
   );
@@ -124,7 +124,7 @@ run("createReflectionReview creates a point-in-time review with an optional note
     {
       themeId: "theme-1",
       score: 6,
-      note: "  今週は最初に結論を言えた  ",
+      note: "  今日はいきなり結論から話せた  ",
       reviewedAt,
     },
     now,
@@ -134,7 +134,7 @@ run("createReflectionReview creates a point-in-time review with an optional note
     id: "review-1700000100000-0",
     themeId: "theme-1",
     score: 6,
-    note: "今週は最初に結論を言えた",
+    note: "今日はいきなり結論から話せた",
     reviewedAt,
     createdAt: now,
     updatedAt: now,
@@ -209,8 +209,8 @@ run("buildPath and formatRouteTitle keep navigation labels consistent", () => {
   assert.equal(buildPath({ name: "theme-new" }), "/themes/new");
   assert.equal(buildPath({ name: "theme-detail", themeId: "theme-42" }), "/themes/theme-42");
   assert.equal(buildPath({ name: "theme-edit", themeId: "theme-42" }), "/themes/theme-42/edit");
-  assert.equal(formatRouteTitle({ name: "theme-new" }), "新しい反省点");
-  assert.equal(formatRouteTitle({ name: "theme-edit", themeId: "theme-42" }), "反省点を編集");
+  assert.equal(formatRouteTitle({ name: "theme-new" }), "新しいテーマ");
+  assert.equal(formatRouteTitle({ name: "theme-edit", themeId: "theme-42" }), "テーマを編集");
 });
 
 run("getRouteSnapshot returns a stable object for the same pathname", () => {

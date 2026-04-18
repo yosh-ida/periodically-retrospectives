@@ -4,6 +4,7 @@ export type AppRoute =
   | { name: "theme-detail"; themeId: string }
   | { name: "theme-edit"; themeId: string }
   | { name: "theme-review"; themeId: string }
+  | { name: "theme-notifications"; themeId: string }
   | { name: "not-found" };
 
 type Listener = () => void;
@@ -41,6 +42,14 @@ export function parseRoute(pathname: string): AppRoute {
     return { name: "theme-review", themeId: decodeURIComponent(reviewMatch[1]) };
   }
 
+  const notificationsMatch = normalizedPathname.match(/^\/themes\/([^/]+)\/notifications$/);
+  if (notificationsMatch) {
+    return {
+      name: "theme-notifications",
+      themeId: decodeURIComponent(notificationsMatch[1]),
+    };
+  }
+
   const detailMatch = normalizedPathname.match(/^\/themes\/([^/]+)$/);
   if (detailMatch) {
     return { name: "theme-detail", themeId: decodeURIComponent(detailMatch[1]) };
@@ -72,6 +81,8 @@ export function buildPath(route: Exclude<AppRoute, { name: "not-found" }>) {
       return `/themes/${encodeURIComponent(route.themeId)}/edit`;
     case "theme-review":
       return `/themes/${encodeURIComponent(route.themeId)}/review`;
+    case "theme-notifications":
+      return `/themes/${encodeURIComponent(route.themeId)}/notifications`;
   }
 }
 
@@ -80,13 +91,15 @@ export function formatRouteTitle(route: AppRoute) {
     case "dashboard":
       return "ダッシュボード";
     case "theme-new":
-      return "新しい反省点";
+      return "新しいテーマ";
     case "theme-detail":
-      return "反省点の詳細";
+      return "テーマの詳細";
     case "theme-edit":
-      return "反省点を編集";
+      return "テーマを編集";
     case "theme-review":
       return "振り返りを記録";
+    case "theme-notifications":
+      return "通知設定";
     case "not-found":
       return "ページが見つかりません";
   }

@@ -5,14 +5,17 @@ import {
   createEntityId,
   createNotificationSettings,
   updateReflectionReview,
+  updateNotificationSettings,
   createReflectionReview,
   createReflectionTheme,
   updateReflectionTheme,
+  type NotificationSettingsInput,
   type NotificationSettings,
   type ReflectionReview,
   type ReflectionTheme,
   type ThemeInput,
 } from "./domain.ts";
+import { runNotificationCheck } from "./features/notifications/engine.ts";
 
 export const DATABASE_NAME = "periodicallyRetrospectives";
 
@@ -54,6 +57,36 @@ export async function createNotificationSettingsReference(now = Date.now()) {
   const settings = createNotificationSettingsPlaceholder(now);
   await db.notificationSettings.put(settings);
   return settings;
+}
+
+export async function ensureThemeNotificationSettings(themeId: string, now = Date.now()) {
+  const theme = await db.themes.get(themeId);
+  if (!theme) {
+    throw new Error("theme not found");
+  }
+
+  if (theme.notificationSettingsId) {
+    const settings = await db.notificationSettings.get(theme.notificationSettingsId);
+    if (!settings) {
+      throw new Error("notification settings reference is invalid");
+    }
+
+    return { settings, theme };
+  }
+
+  const settings = createNotificationSettingsPlaceholder(now);
+  const updatedTheme = {
+    ...theme,
+    notificationSettingsId: settings.id,
+    updatedAt: now,
+  };
+
+  await db.transaction("rw", db.notificationSettings, db.themes, async () => {
+    await db.notificationSettings.put(settings);
+    await db.themes.put(updatedTheme);
+  });
+
+  return { settings, theme: updatedTheme };
 }
 
 export async function createTheme(input: ThemeInput, now = Date.now()) {
@@ -124,6 +157,60 @@ export async function updateReview(
   const updatedReview = updateReflectionReview(review, input, now);
   await db.reviews.put(updatedReview);
   return updatedReview;
+}
+
+export async function updateNotificationSettingsRecord(
+  settingsId: string,
+  input: NotificationSettingsInput,
+  now = Date.now(),
+) {
+  const settings = await db.notificationSettings.get(settingsId);
+  if (!settings) {
+    throw new Error("notification settings not found");
+  }
+
+  const updatedSettings = updateNotificationSettings(settings, input, now);
+  await db.notificationSettings.put(updatedSettings);
+  return updatedSettings;
+}
+
+export async function checkAndNotify(now = Date.now()) {
+  const themes = await db.themes.toArray();
+  const activeThemes = themes.filter((theme) => !theme.isArchived && theme.notificationSettingsId);
+  const settingsIds = [
+    ...new Set(
+      activeThemes
+        .map((theme) => theme.notificationSettingsId)
+        .filter((value): value is string => typeof value === "string"),
+    ),
+  ];
+  const settingsList = settingsIds.length
+    ? await db.notificationSettings.bulkGet(settingsIds)
+    : [];
+  const settingsById = new Map(
+    settingsList
+      .filter((settings): settings is NotificationSettings => Boolean(settings))
+      .map((settings) => [settings.id, settings]),
+  );
+
+  const registrations = activeThemes.flatMap((theme) => {
+    const settings = theme.notificationSettingsId
+      ? settingsById.get(theme.notificationSettingsId)
+      : undefined;
+
+    return settings ? [{ settings, theme }] : [];
+  });
+
+  const result = runNotificationCheck({
+    now,
+    registrations,
+  });
+
+  if (result.updatedSettings.length > 0) {
+    await db.notificationSettings.bulkPut(result.updatedSettings);
+  }
+
+  return result;
 }
 
 export async function seedPhase1DemoData(now = Date.now()) {

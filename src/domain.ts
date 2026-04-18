@@ -50,6 +50,21 @@ export type NotificationChannelSettings = {
   rules: NotificationRule[];
 };
 
+export type NotificationChannelSettingsInput = {
+  enabled: boolean;
+  rules: NotificationRule[];
+};
+
+export type NotificationSettingsInput = {
+  enabled: boolean;
+  channels: {
+    checkIn: NotificationChannelSettingsInput;
+    review: NotificationChannelSettingsInput;
+  };
+  lastNotifiedSlotId?: string | null;
+  lastCheckedAt?: number | null;
+};
+
 export type NotificationSettings = {
   id: string;
   enabled: boolean;
@@ -216,6 +231,58 @@ function createEmptyChannelSettings(): NotificationChannelSettings {
   };
 }
 
+function normalizeTimes(times: string[]) {
+  const values = times
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0);
+
+  const invalidTime = values.find((value) => !/^\d{2}:\d{2}$/.test(value));
+  if (invalidTime) {
+    throw new Error("times must use HH:MM format");
+  }
+
+  return [...new Set(values)].sort();
+}
+
+function normalizeWeekdays(weekdays: number[]) {
+  const values = [...new Set(weekdays)].sort((left, right) => left - right);
+  const invalidWeekday = values.find((value) => !Number.isInteger(value) || value < 0 || value > 6);
+  if (invalidWeekday !== undefined) {
+    throw new Error("weekdays must be between 0 and 6");
+  }
+
+  return values;
+}
+
+function normalizeNotificationRule(rule: NotificationRule): NotificationRule {
+  if (rule.type === "every-n-days") {
+    if (!Number.isInteger(rule.intervalDays) || rule.intervalDays < 1) {
+      throw new Error("intervalDays must be 1 or greater");
+    }
+
+    return {
+      ...rule,
+      anchorDate: rule.anchorDate.trim(),
+      times: normalizeTimes(rule.times),
+    };
+  }
+
+  return {
+    ...rule,
+    weekdays: normalizeWeekdays(rule.weekdays),
+    times: normalizeTimes(rule.times),
+  };
+}
+
+function normalizeChannelSettings(
+  settings: NotificationChannelSettingsInput,
+): NotificationChannelSettings {
+  return {
+    enabled: settings.enabled,
+    rules: settings.rules.map(normalizeNotificationRule),
+  };
+}
+
 export function createNotificationSettings(
   input?: CreateNotificationSettingsInput,
   now = Date.now(),
@@ -229,6 +296,24 @@ export function createNotificationSettings(
     },
     lastNotifiedSlotId: input?.lastNotifiedSlotId ?? null,
     lastCheckedAt: input?.lastCheckedAt ?? null,
+    updatedAt: now,
+  };
+}
+
+export function updateNotificationSettings(
+  settings: NotificationSettings,
+  input: NotificationSettingsInput,
+  now = Date.now(),
+): NotificationSettings {
+  return {
+    ...settings,
+    enabled: input.enabled,
+    channels: {
+      checkIn: normalizeChannelSettings(input.channels.checkIn),
+      review: normalizeChannelSettings(input.channels.review),
+    },
+    lastNotifiedSlotId: input.lastNotifiedSlotId ?? null,
+    lastCheckedAt: input.lastCheckedAt ?? null,
     updatedAt: now,
   };
 }
