@@ -73,6 +73,12 @@ type CreateReflectionReviewInput = {
   reviewedAt: number;
 };
 
+type UpdateReflectionReviewInput = {
+  score: number;
+  note?: string;
+  reviewedAt: number;
+};
+
 type CreateNotificationSettingsInput = Partial<Omit<NotificationSettings, "id" | "updatedAt">>;
 
 const idSequenceByKey = new Map<string, number>();
@@ -181,6 +187,24 @@ export function createReflectionReview(
     note: normalizeText(input.note ?? ""),
     reviewedAt: input.reviewedAt,
     createdAt: now,
+    updatedAt: now,
+  };
+}
+
+export function updateReflectionReview(
+  review: ReflectionReview,
+  input: UpdateReflectionReviewInput,
+  now = Date.now(),
+): ReflectionReview {
+  if (!isReviewScore(input.score)) {
+    throw new Error("score must be between 1 and 7");
+  }
+
+  return {
+    ...review,
+    score: input.score,
+    note: normalizeText(input.note ?? ""),
+    reviewedAt: input.reviewedAt,
     updatedAt: now,
   };
 }

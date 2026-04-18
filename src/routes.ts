@@ -3,6 +3,7 @@ export type AppRoute =
   | { name: "theme-new" }
   | { name: "theme-detail"; themeId: string }
   | { name: "theme-edit"; themeId: string }
+  | { name: "theme-review"; themeId: string }
   | { name: "not-found" };
 
 type Listener = () => void;
@@ -35,6 +36,11 @@ export function parseRoute(pathname: string): AppRoute {
     return { name: "theme-edit", themeId: decodeURIComponent(editMatch[1]) };
   }
 
+  const reviewMatch = normalizedPathname.match(/^\/themes\/([^/]+)\/review$/);
+  if (reviewMatch) {
+    return { name: "theme-review", themeId: decodeURIComponent(reviewMatch[1]) };
+  }
+
   const detailMatch = normalizedPathname.match(/^\/themes\/([^/]+)$/);
   if (detailMatch) {
     return { name: "theme-detail", themeId: decodeURIComponent(detailMatch[1]) };
@@ -64,6 +70,8 @@ export function buildPath(route: Exclude<AppRoute, { name: "not-found" }>) {
       return `/themes/${encodeURIComponent(route.themeId)}`;
     case "theme-edit":
       return `/themes/${encodeURIComponent(route.themeId)}/edit`;
+    case "theme-review":
+      return `/themes/${encodeURIComponent(route.themeId)}/review`;
   }
 }
 
@@ -77,6 +85,8 @@ export function formatRouteTitle(route: AppRoute) {
       return "反省点の詳細";
     case "theme-edit":
       return "反省点を編集";
+    case "theme-review":
+      return "振り返りを記録";
     case "not-found":
       return "ページが見つかりません";
   }

@@ -116,7 +116,7 @@ export function DashboardPage() {
             <Typography variant="overline">Recent Reviews</Typography>
             <Typography variant="h4">{summary?.reviews.length ?? 0}</Typography>
             <Typography color="text.secondary" variant="body2">
-              Phase 3 で入力フローを追加する前の履歴プレビュー
+              7 段階評価として保存された履歴の総数
             </Typography>
           </Stack>
         </Paper>
@@ -133,7 +133,7 @@ export function DashboardPage() {
               <Box>
                 <Typography variant="h5">反省点一覧</Typography>
                 <Typography color="text.secondary">
-                  アクティブなテーマだけを表示しています。不要になったものはアーカイブできます。
+                  アクティブなテーマだけを表示しています。詳細確認、振り返り記録、アーカイブができます。
                 </Typography>
               </Box>
               <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
@@ -197,16 +197,14 @@ export function DashboardPage() {
         <CardContent>
           <Stack spacing={2}>
             <Typography variant="h5">最近の振り返り履歴</Typography>
-            <Typography color="text.secondary">
-              詳細グラフと入力フローは Phase 3 で実装します。ここでは最新 5 件だけ確認できます。
-            </Typography>
+            <Typography color="text.secondary">最新 5 件の時点評価を一覧で確認できます。</Typography>
             <Divider />
             <Stack spacing={1.5}>
               {summary?.reviews.length ? (
                 summary.reviews.slice(0, 5).map((review) => (
                   <Paper key={review.id} variant="outlined" sx={{ p: 2 }}>
                     <Typography variant="body2">
-                      {review.themeId} / score {review.score}
+                      {new Date(review.reviewedAt).toLocaleString("ja-JP")} / score {review.score}
                     </Typography>
                     <Typography color="text.secondary" variant="body2">
                       {review.note || "メモなし"}

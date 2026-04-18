@@ -11,13 +11,14 @@ import {
 import { DashboardPage } from "./pages/DashboardPage.tsx";
 import { ThemeDetailPage } from "./pages/ThemeDetailPage.tsx";
 import { ThemeFormPage } from "./pages/ThemeFormPage.tsx";
+import { ThemeReviewPage } from "./pages/ThemeReviewPage.tsx";
 
 function App() {
   const route = useSyncExternalStore(subscribeToRouteChanges, getCurrentRoute, getCurrentRoute);
 
   let content = <DashboardPage />;
   let description =
-    "課題・原因・ゴールを持つ反省点を一覧、作成、編集、詳細表示、アーカイブできる Phase 2 の実装です。";
+    "課題・原因・ゴールを持つ反省点を管理し、7 段階の振り返り記録と推移確認まで行える Phase 3 の実装です。";
 
   if (route.name === "theme-new") {
     content = <ThemeFormPage mode="create" />;
@@ -37,6 +38,12 @@ function App() {
       "既存の反省点を更新し、課題・原因・ゴールや通知設定参照のつながりを見直せます。";
   }
 
+  if (route.name === "theme-review") {
+    content = <ThemeReviewPage themeId={route.themeId} />;
+    description =
+      "対象テーマの達成度を 7 段階で記録し、必要に応じて過去の振り返りメモを見直して更新できます。";
+  }
+
   if (route.name === "not-found") {
     content = (
       <Card>
@@ -52,7 +59,8 @@ function App() {
         </CardContent>
       </Card>
     );
-    description = "存在しないパスです。Phase 2 ではダッシュボードと反省点管理画面を提供しています。";
+    description =
+      "存在しないパスです。Phase 3 ではダッシュボード、反省点管理、振り返り入力画面を提供しています。";
   }
 
   return (
