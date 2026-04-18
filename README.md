@@ -1,22 +1,16 @@
 # Periodic Retrospectives
 
-Phase 1 of the implementation plan is now the active scope.
+Periodic Retrospectives is a local-first reflection app for tracking themes,
+recording 7-point reviews, visualizing changes over time, and scheduling
+`check-in` / `review` reminders.
 
-This repository currently keeps only the domain and storage foundation for:
+The current implementation includes:
 
-- `ReflectionTheme`
-- `ReflectionReview`
-- `NotificationSettings`
-
-The app intentionally does not include later-phase navigation, visualization, or PWA behavior yet.
-
-## Current UI
-
-The temporary UI is a Phase 1 workspace that helps confirm:
-
-- the three domain models are separate
-- the Dexie table definitions match the data model
-- sample records can be inserted into IndexedDB and cleared again
+- theme creation, editing, archiving, and dashboard listing
+- review entry and editing on `/themes/:id/review`
+- raw / weekly / monthly review charts on `/themes/:id`
+- per-theme notification settings for `check-in` and `review`
+- installable PWA metadata, Service Worker registration, and Periodic Sync wiring
 
 ## Commands
 
@@ -24,10 +18,22 @@ The temporary UI is a Phase 1 workspace that helps confirm:
 npm install
 npm run dev
 npm test
-node ./node_modules/typescript/bin/tsc -b
+npm run check
 ```
 
-`npm test` runs the Phase 1 domain and schema checks without adding an external test runner.
+## PWA / Notification Notes
+
+- Open the app in Chrome or another Chromium browser for the full PWA flow.
+- Visit a theme's notification settings page to:
+  - request notification permission
+  - register `reflection-notification-check`
+  - run the notification judge manually
+  - inspect install availability and standalone status
+- The Service Worker handles:
+  - `activate`
+  - `message`
+  - `periodicsync`
+  - `notificationclick`
 
 ## Documents
 
@@ -39,10 +45,8 @@ node ./node_modules/typescript/bin/tsc -b
 - Design:
   - [docs/design/domain-model.md](./docs/design/domain-model.md)
   - [docs/design/data-model.md](./docs/design/data-model.md)
-
-## Phase 1 Notes
-
-- `src/domain.ts` defines the Phase 1 domain types and constructors.
-- `src/db.ts` defines the Dexie schema and a small demo-data helper.
-- `src/store.ts` only manages lightweight UI status for the Phase 1 workspace.
-- `src/App.tsx` is a temporary inspection screen, not the final product UI.
+  - [docs/design/screen-flow.md](./docs/design/screen-flow.md)
+  - [docs/design/review-visualization.md](./docs/design/review-visualization.md)
+  - [docs/design/pwa-notification-architecture.md](./docs/design/pwa-notification-architecture.md)
+  - [docs/design/notification-storage-and-scheduling.md](./docs/design/notification-storage-and-scheduling.md)
+  - [docs/design/notification-implementation-layout.md](./docs/design/notification-implementation-layout.md)

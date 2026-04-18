@@ -19,9 +19,9 @@ import {
 import { useEffect, useMemo, useState } from "react";
 
 import {
+  db,
   ensureThemeNotificationSettings,
   updateNotificationSettingsRecord,
-  db,
 } from "../db.ts";
 import {
   createEntityId,
@@ -30,11 +30,14 @@ import {
   type NotificationSettingsInput,
 } from "../domain.ts";
 import {
-  getDetailedBrowserCapabilities,
+  getPwaRuntimeState,
+  promptPwaInstall,
   registerPeriodicNotificationSync,
+  registerPwaLifecycleListeners,
   requestNotificationPermission,
   runNotificationCheckNow,
-  type BrowserCapabilities,
+  subscribeToPwaRuntimeState,
+  type PwaRuntimeState,
 } from "../features/notifications/runtime.ts";
 import { navigate } from "../routes.ts";
 import { useWorkspaceStore } from "../store.ts";
@@ -71,7 +74,7 @@ const weekdayOptions = [
 
 function formatTimestamp(value: number | null | undefined) {
   if (!value) {
-    return "未実行";
+    return "Not checked yet";
   }
 
   return new Date(value).toLocaleString("ja-JP", {
@@ -131,9 +134,9 @@ function createDefaultRule(channel: NotificationChannel): NotificationRule {
 
 export function ThemeNotificationsPage({ themeId }: ThemeNotificationsPageProps) {
   const { isBusy, setBusy, setStatusMessage } = useWorkspaceStore();
-  const [capabilities, setCapabilities] = useState<BrowserCapabilities | null>(null);
+  const [pwaState, setPwaState] = useState<PwaRuntimeState | null>(null);
   const [formState, setFormState] = useState<NotificationSettingsInput>(emptyFormState);
-  const [runSummary, setRunSummary] = useState<string>("");
+  const [runSummary, setRunSummary] = useState("");
 
   const detail = useLiveQuery(async () => {
     const theme = await db.themes.get(themeId);
@@ -154,20 +157,29 @@ export function ThemeNotificationsPage({ themeId }: ThemeNotificationsPageProps)
   useEffect(() => {
     let cancelled = false;
 
-    getDetailedBrowserCapabilities()
-      .then((value) => {
+    const refresh = async () => {
+      try {
+        const nextState = await getPwaRuntimeState();
         if (!cancelled) {
-          setCapabilities(value);
+          setPwaState(nextState);
         }
-      })
-      .catch(() => {
+      } catch {
         if (!cancelled) {
-          setCapabilities(null);
+          setPwaState(null);
         }
-      });
+      }
+    };
+
+    registerPwaLifecycleListeners();
+    void refresh();
+
+    const unsubscribe = subscribeToPwaRuntimeState(() => {
+      void refresh();
+    });
 
     return () => {
       cancelled = true;
+      unsubscribe();
     };
   }, []);
 
@@ -183,28 +195,37 @@ export function ThemeNotificationsPage({ themeId }: ThemeNotificationsPageProps)
   }, [detail]);
 
   const hasSettings = Boolean(detail?.settings);
-  const lastRuntimeSummary = useMemo(() => {
+  const runtimeSummary = useMemo(() => {
     if (!detail?.settings) {
       return null;
     }
 
     return {
       lastCheckedAt: formatTimestamp(detail.settings.lastCheckedAt),
-      lastNotifiedSlotId: detail.settings.lastNotifiedSlotId ?? "未通知",
+      lastNotifiedSlotId: detail.settings.lastNotifiedSlotId ?? "No notification yet",
     };
   }, [detail]);
 
+  const refreshPwaState = async () => {
+    try {
+      setPwaState(await getPwaRuntimeState());
+    } catch {
+      setPwaState(null);
+    }
+  };
+
   const updateChannel = (
     channel: NotificationChannel,
-    updater: (channelState: NotificationSettingsInput["channels"]["checkIn"]) => NotificationSettingsInput["channels"]["checkIn"],
+    updater: (
+      channelState: NotificationSettingsInput["channels"]["checkIn"],
+    ) => NotificationSettingsInput["channels"]["checkIn"],
   ) => {
+    const key = channel === "check-in" ? "checkIn" : "review";
     setFormState((current) => ({
       ...current,
       channels: {
         ...current.channels,
-        [channel === "check-in" ? "checkIn" : "review"]: updater(
-          current.channels[channel === "check-in" ? "checkIn" : "review"],
-        ),
+        [key]: updater(current.channels[key]),
       },
     }));
   };
@@ -224,7 +245,7 @@ export function ThemeNotificationsPage({ themeId }: ThemeNotificationsPageProps)
     setBusy(true);
     try {
       const { settings } = await ensureThemeNotificationSettings(themeId);
-      setStatusMessage(`通知設定 ${settings.id} をこのテーマに紐付けました。`);
+      setStatusMessage(`Prepared notification settings ${settings.id}.`);
     } finally {
       setBusy(false);
     }
@@ -238,7 +259,7 @@ export function ThemeNotificationsPage({ themeId }: ThemeNotificationsPageProps)
     setBusy(true);
     try {
       await updateNotificationSettingsRecord(detail.settings.id, formState);
-      setStatusMessage("通知設定を保存しました。");
+      setStatusMessage("Saved notification settings.");
     } finally {
       setBusy(false);
     }
@@ -248,8 +269,8 @@ export function ThemeNotificationsPage({ themeId }: ThemeNotificationsPageProps)
     setBusy(true);
     try {
       const permission = await requestNotificationPermission();
-      setStatusMessage(`通知権限: ${permission}`);
-      setCapabilities(await getDetailedBrowserCapabilities());
+      setStatusMessage(`Notification permission: ${permission}`);
+      await refreshPwaState();
     } finally {
       setBusy(false);
     }
@@ -259,10 +280,12 @@ export function ThemeNotificationsPage({ themeId }: ThemeNotificationsPageProps)
     setBusy(true);
     try {
       await registerPeriodicNotificationSync();
-      setStatusMessage("Periodic Sync を登録しました。");
-      setCapabilities(await getDetailedBrowserCapabilities());
+      setStatusMessage("Registered periodic sync.");
+      await refreshPwaState();
     } catch (error) {
-      setStatusMessage(error instanceof Error ? error.message : "Periodic Sync を登録できませんでした。");
+      setStatusMessage(
+        error instanceof Error ? error.message : "Failed to register periodic sync.",
+      );
     } finally {
       setBusy(false);
     }
@@ -274,21 +297,39 @@ export function ThemeNotificationsPage({ themeId }: ThemeNotificationsPageProps)
       const result = await runNotificationCheckNow();
       const summary =
         result.notifications.length > 0
-          ? `通知候補 ${result.notifications.length} 件: ${result.notifications.map((item) => item.slotId).join(", ")}`
-          : "現在時刻では通知候補はありませんでした。";
+          ? `Notifications: ${result.notifications.map((item) => item.slotId).join(", ")}`
+          : "No notifications are due right now.";
       setRunSummary(summary);
       setStatusMessage(summary);
+      await refreshPwaState();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleInstall = async () => {
+    setBusy(true);
+    try {
+      const outcome = await promptPwaInstall();
+      const message =
+        outcome === "accepted"
+          ? "PWA install prompt accepted."
+          : outcome === "dismissed"
+            ? "PWA install prompt dismissed."
+            : "PWA install prompt is not available.";
+      setStatusMessage(message);
+      await refreshPwaState();
     } finally {
       setBusy(false);
     }
   };
 
   if (detail === null) {
-    return <Alert severity="error">対象のテーマが見つかりません。</Alert>;
+    return <Alert severity="error">Theme not found.</Alert>;
   }
 
   if (!detail) {
-    return <Alert severity="info">通知設定を読み込んでいます。</Alert>;
+    return <Alert severity="info">Loading notification settings...</Alert>;
   }
 
   return (
@@ -298,14 +339,14 @@ export function ThemeNotificationsPage({ themeId }: ThemeNotificationsPageProps)
           <Stack spacing={2}>
             <Typography variant="h5">{detail.theme.issue}</Typography>
             <Typography color="text.secondary">
-              このテーマ向けの `check-in` / `review` 通知ルールを設定します。
+              Configure independent `check-in` and `review` rules for this theme.
             </Typography>
             <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
               <Button variant="text" onClick={() => navigate({ name: "theme-detail", themeId })}>
-                詳細へ戻る
+                Open detail
               </Button>
               <Button variant="outlined" onClick={() => navigate({ name: "theme-review", themeId })}>
-                振り返りを記録
+                Open review editor
               </Button>
             </Stack>
           </Stack>
@@ -315,22 +356,53 @@ export function ThemeNotificationsPage({ themeId }: ThemeNotificationsPageProps)
       <Card>
         <CardContent>
           <Stack spacing={2}>
-            <Typography variant="h6">ブラウザ状態</Typography>
+            <Typography variant="h6">PWA status</Typography>
             <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-              <Chip label={`Service Worker: ${capabilities?.serviceWorkerSupported ? "yes" : "no"}`} />
-              <Chip label={`Notification: ${capabilities?.notificationSupported ? "yes" : "no"}`} />
-              <Chip label={`Periodic Sync: ${capabilities?.periodicSyncSupported ? "yes" : "no"}`} />
-              <Chip label={`Permission: ${capabilities?.notificationPermission ?? "unknown"}`} color="secondary" />
+              <Chip label={`Install: ${pwaState?.installStateLabel ?? "unknown"}`} color="secondary" />
+              <Chip label={`Display: ${pwaState?.isStandalone ? "standalone" : "browser"}`} />
+              <Chip label={`SW control: ${pwaState?.serviceWorkerStateLabel ?? "unknown"}`} />
+              <Chip label={`Periodic tag: ${pwaState?.periodicSyncStateLabel ?? "unknown"}`} />
+            </Stack>
+            <Typography color="text.secondary" variant="body2">
+              This section reflects the installed-PWA flow: install prompt availability,
+              standalone mode, Service Worker control, and the
+              `reflection-notification-check` tag.
+            </Typography>
+            <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
+              <Button
+                variant="contained"
+                onClick={handleInstall}
+                disabled={isBusy || !pwaState?.canInstall}
+              >
+                Install app
+              </Button>
+              <Button variant="text" onClick={() => void refreshPwaState()} disabled={isBusy}>
+                Refresh status
+              </Button>
+            </Stack>
+          </Stack>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent>
+          <Stack spacing={2}>
+            <Typography variant="h6">Browser capabilities</Typography>
+            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+              <Chip label={`Service Worker: ${pwaState?.serviceWorkerSupported ? "yes" : "no"}`} />
+              <Chip label={`Notification: ${pwaState?.notificationSupported ? "yes" : "no"}`} />
+              <Chip label={`Periodic Sync: ${pwaState?.periodicSyncSupported ? "yes" : "no"}`} />
+              <Chip label={`Permission: ${pwaState?.notificationPermission ?? "unknown"}`} color="secondary" />
             </Stack>
             <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
               <Button variant="outlined" onClick={handlePermissionRequest} disabled={isBusy}>
-                通知権限を確認
+                Request notification permission
               </Button>
               <Button variant="outlined" onClick={handleRegisterPeriodicSync} disabled={isBusy}>
-                Periodic Sync を登録
+                Register periodic sync
               </Button>
               <Button variant="contained" onClick={handleRunCheck} disabled={isBusy}>
-                通知チェックを手動実行
+                Run notification check
               </Button>
             </Stack>
             {runSummary ? <Alert severity="info">{runSummary}</Alert> : null}
@@ -343,10 +415,11 @@ export function ThemeNotificationsPage({ themeId }: ThemeNotificationsPageProps)
           <CardContent>
             <Stack spacing={2}>
               <Alert severity="info">
-                まだこのテーマには通知設定が紐付いていません。設定レコードを作ってから編集します。
+                This theme does not have a notification settings record yet. Create one
+                before editing rules.
               </Alert>
               <Button variant="contained" onClick={handlePrepareSettings} disabled={isBusy}>
-                通知設定を準備する
+                Prepare notification settings
               </Button>
             </Stack>
           </CardContent>
@@ -356,9 +429,10 @@ export function ThemeNotificationsPage({ themeId }: ThemeNotificationsPageProps)
           <CardContent>
             <Stack spacing={3}>
               <Stack spacing={1}>
-                <Typography variant="h6">通知ルール</Typography>
+                <Typography variant="h6">Notification rules</Typography>
                 <Typography color="text.secondary">
-                  ルールは `every-n-days` と `weekly-days` を使い分けられます。時刻は `HH:MM` をカンマ区切りで入力します。
+                  Use `every-n-days` and `weekly-days`. Enter multiple times as comma
+                  separated `HH:MM`.
                 </Typography>
               </Stack>
               <FormControlLabel
@@ -368,7 +442,7 @@ export function ThemeNotificationsPage({ themeId }: ThemeNotificationsPageProps)
                     onChange={(_, checked) => setFormState((current) => ({ ...current, enabled: checked }))}
                   />
                 }
-                label="通知を有効にする"
+                label="Enable notifications for this theme"
               />
               <Divider />
               <ChannelEditor
@@ -417,17 +491,17 @@ export function ThemeNotificationsPage({ themeId }: ThemeNotificationsPageProps)
               <Divider />
               <Paper variant="outlined" sx={{ p: 2 }}>
                 <Stack spacing={1}>
-                  <Typography variant="subtitle1">実行状態</Typography>
+                  <Typography variant="subtitle1">Runtime summary</Typography>
                   <Typography color="text.secondary" variant="body2">
-                    最終チェック: {lastRuntimeSummary?.lastCheckedAt}
+                    Last checked: {runtimeSummary?.lastCheckedAt}
                   </Typography>
                   <Typography color="text.secondary" variant="body2">
-                    最終通知スロット: {lastRuntimeSummary?.lastNotifiedSlotId}
+                    Last notified slot: {runtimeSummary?.lastNotifiedSlotId}
                   </Typography>
                 </Stack>
               </Paper>
               <Button variant="contained" onClick={handleSave} disabled={isBusy}>
-                通知設定を保存
+                Save notification settings
               </Button>
             </Stack>
           </CardContent>
@@ -461,14 +535,14 @@ function ChannelEditor({
       <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} justifyContent="space-between">
         <FormControlLabel
           control={<Switch checked={state.enabled} onChange={(_, checked) => onChangeEnabled(checked)} />}
-          label={`${channelLabel} を有効にする`}
+          label={`Enable ${channelLabel}`}
         />
         <Button variant="outlined" onClick={onAddRule}>
-          ルールを追加
+          Add rule
         </Button>
       </Stack>
       {state.rules.length === 0 ? (
-        <Typography color="text.secondary">ルールはまだありません。</Typography>
+        <Typography color="text.secondary">No rules yet.</Typography>
       ) : (
         state.rules.map((rule) => (
           <Paper key={rule.id} variant="outlined" sx={{ p: 2 }}>
@@ -515,7 +589,7 @@ function ChannelEditor({
                   }
                 />
                 <Button color="inherit" onClick={() => onRemoveRule(rule.id)}>
-                  削除
+                  Remove
                 </Button>
               </Stack>
               {rule.type === "every-n-days" ? (
@@ -549,8 +623,7 @@ function ChannelEditor({
                       onUpdateRule(rule.id, (current) => ({
                         ...(current.type === "every-n-days" ? current : createDefaultRule(channel)),
                         type: "every-n-days",
-                        intervalDays:
-                          current.type === "every-n-days" ? current.intervalDays : 2,
+                        intervalDays: current.type === "every-n-days" ? current.intervalDays : 2,
                         anchorDate: event.target.value,
                       }))
                     }

@@ -9,6 +9,7 @@ import {
   pickLatestDueNotification,
   runNotificationCheck,
 } from "../src/features/notifications/engine.ts";
+import { derivePwaAvailability } from "../src/features/notifications/runtime.ts";
 import {
   buildPath,
   formatRouteTitle,
@@ -267,4 +268,36 @@ run("runNotificationCheck updates runtime state when a notification is emitted",
     "review-2026-04-20T20:00",
   );
   assert.equal(result.updatedSettings[0]?.lastCheckedAt, atUtc(2026, 4, 20, 20, 30));
+});
+
+run("derivePwaAvailability enables install only when the prompt is available outside standalone mode", () => {
+  assert.deepEqual(
+    derivePwaAvailability({
+      hasInstallPrompt: true,
+      isStandalone: false,
+      periodicSyncRegistered: true,
+      serviceWorkerControlled: true,
+    }),
+    {
+      canInstall: true,
+      installStateLabel: "available",
+      periodicSyncStateLabel: "registered",
+      serviceWorkerStateLabel: "controlled",
+    },
+  );
+
+  assert.deepEqual(
+    derivePwaAvailability({
+      hasInstallPrompt: false,
+      isStandalone: true,
+      periodicSyncRegistered: false,
+      serviceWorkerControlled: false,
+    }),
+    {
+      canInstall: false,
+      installStateLabel: "installed",
+      periodicSyncStateLabel: "not-registered",
+      serviceWorkerStateLabel: "waiting",
+    },
+  );
 });
