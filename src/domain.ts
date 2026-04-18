@@ -1,5 +1,12 @@
 export type ReviewScore = 1 | 2 | 3 | 4 | 5 | 6 | 7;
 
+export type ThemeInput = {
+  issue: string;
+  cause: string;
+  goal: string;
+  notificationSettingsId?: string | null;
+};
+
 export type ReflectionTheme = {
   id: string;
   issue: string;
@@ -55,11 +62,7 @@ export type NotificationSettings = {
   updatedAt: number;
 };
 
-type CreateReflectionThemeInput = {
-  issue: string;
-  cause: string;
-  goal: string;
-  notificationSettingsId?: string | null;
+type CreateReflectionThemeInput = ThemeInput & {
   isArchived?: boolean;
 };
 
@@ -85,6 +88,15 @@ function normalizeText(value: string) {
   return value.trim();
 }
 
+function normalizeThemeInput(input: ThemeInput) {
+  return {
+    issue: normalizeText(input.issue),
+    cause: normalizeText(input.cause),
+    goal: normalizeText(input.goal),
+    notificationSettingsId: input.notificationSettingsId ?? null,
+  };
+}
+
 function requireTextFields(values: Record<string, string>) {
   const hasMissingField = Object.values(values).some((value) => value.length === 0);
   if (hasMissingField) {
@@ -104,9 +116,7 @@ export function createReflectionTheme(
   input: CreateReflectionThemeInput,
   now = Date.now(),
 ): ReflectionTheme {
-  const issue = normalizeText(input.issue);
-  const cause = normalizeText(input.cause);
-  const goal = normalizeText(input.goal);
+  const { cause, goal, issue, notificationSettingsId } = normalizeThemeInput(input);
 
   requireTextFields({ issue, cause, goal });
 
@@ -115,9 +125,39 @@ export function createReflectionTheme(
     issue,
     cause,
     goal,
-    notificationSettingsId: input.notificationSettingsId ?? null,
+    notificationSettingsId,
     isArchived: input.isArchived ?? false,
     createdAt: now,
+    updatedAt: now,
+  };
+}
+
+export function updateReflectionTheme(
+  theme: ReflectionTheme,
+  input: ThemeInput,
+  now = Date.now(),
+): ReflectionTheme {
+  const { cause, goal, issue, notificationSettingsId } = normalizeThemeInput(input);
+
+  requireTextFields({ issue, cause, goal });
+
+  return {
+    ...theme,
+    issue,
+    cause,
+    goal,
+    notificationSettingsId,
+    updatedAt: now,
+  };
+}
+
+export function archiveReflectionTheme(
+  theme: ReflectionTheme,
+  now = Date.now(),
+): ReflectionTheme {
+  return {
+    ...theme,
+    isArchived: true,
     updatedAt: now,
   };
 }
