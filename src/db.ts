@@ -4,6 +4,7 @@ import {
   archiveReflectionTheme,
   createEntityId,
   createNotificationSettings,
+  updateReflectionReview,
   createReflectionReview,
   createReflectionTheme,
   updateReflectionTheme,
@@ -85,6 +86,44 @@ export async function archiveTheme(themeId: string, now = Date.now()) {
   const archivedTheme = archiveReflectionTheme(existingTheme, now);
   await db.themes.put(archivedTheme);
   return archivedTheme;
+}
+
+export async function createReview(
+  input: {
+    themeId: string;
+    score: number;
+    note?: string;
+    reviewedAt: number;
+  },
+  now = Date.now(),
+) {
+  const theme = await db.themes.get(input.themeId);
+  if (!theme) {
+    throw new Error("theme not found");
+  }
+
+  const review = createReflectionReview(input, now);
+  await db.reviews.put(review);
+  return review;
+}
+
+export async function updateReview(
+  reviewId: string,
+  input: {
+    score: number;
+    note?: string;
+    reviewedAt: number;
+  },
+  now = Date.now(),
+) {
+  const review = await db.reviews.get(reviewId);
+  if (!review) {
+    throw new Error("review not found");
+  }
+
+  const updatedReview = updateReflectionReview(review, input, now);
+  await db.reviews.put(updatedReview);
+  return updatedReview;
 }
 
 export async function seedPhase1DemoData(now = Date.now()) {

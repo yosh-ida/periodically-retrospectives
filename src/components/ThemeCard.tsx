@@ -47,6 +47,12 @@ export function ThemeCard({
             </Button>
             <Button
               variant="outlined"
+              onClick={() => navigate({ name: "theme-review", themeId: id })}
+            >
+              振り返る
+            </Button>
+            <Button
+              variant="text"
               href={buildPath({ name: "theme-edit", themeId: id })}
               onClick={(event) => {
                 event.preventDefault();

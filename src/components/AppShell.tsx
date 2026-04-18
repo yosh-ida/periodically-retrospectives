@@ -40,7 +40,11 @@ export function AppShell({ children, description, route, title }: AppShellProps)
                 alignItems={{ xs: "flex-start", md: "center" }}
               >
                 <Stack spacing={1}>
-                  <Chip label="Phase 2 Theme Management" color="secondary" sx={{ width: "fit-content" }} />
+                  <Chip
+                    label="Phase 3 Review Workflow"
+                    color="secondary"
+                    sx={{ width: "fit-content" }}
+                  />
                   <Typography variant="h3">{title}</Typography>
                   <Typography color="text.secondary">{description}</Typography>
                 </Stack>
