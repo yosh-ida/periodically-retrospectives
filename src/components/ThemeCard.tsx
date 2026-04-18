@@ -39,17 +39,17 @@ export function ThemeCard({
             </Typography>
           </Stack>
           <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} sx={{ mt: "auto" }}>
-            <Button
-              variant="contained"
-              onClick={() => navigate({ name: "theme-detail", themeId: id })}
-            >
+            <Button variant="contained" onClick={() => navigate({ name: "theme-detail", themeId: id })}>
               詳細を見る
+            </Button>
+            <Button variant="outlined" onClick={() => navigate({ name: "theme-review", themeId: id })}>
+              振り返る
             </Button>
             <Button
               variant="outlined"
-              onClick={() => navigate({ name: "theme-review", themeId: id })}
+              onClick={() => navigate({ name: "theme-notifications", themeId: id })}
             >
-              振り返る
+              通知設定
             </Button>
             <Button
               variant="text"

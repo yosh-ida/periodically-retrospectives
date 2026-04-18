@@ -3,6 +3,12 @@ import ReactDOM from "react-dom/client";
 import { CssBaseline, ThemeProvider, createTheme } from "@mui/material";
 import App from "./App.tsx";
 
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("/service-worker.js").catch((error) => {
+    console.warn("Failed to register service worker", error);
+  });
+}
+
 const theme = createTheme({
   palette: {
     mode: "light",
