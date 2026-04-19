@@ -180,6 +180,11 @@ function buildSlotId(channel, dateKey, time) {
   return `${channel}-${dateKey}T${time}`;
 }
 
+function buildAppUrl(pathname = "") {
+  const normalizedPathname = pathname.startsWith("/") ? pathname.slice(1) : pathname;
+  return new URL(normalizedPathname, self.registration.scope).toString();
+}
+
 function buildNotificationCopy(channel, theme) {
   if (channel === "check-in") {
     return {
@@ -283,8 +288,8 @@ async function runNotificationCheck(now = Date.now()) {
       data: {
         url:
           due.channel === "review"
-            ? `/themes/${encodeURIComponent(due.themeId)}/review`
-            : `/themes/${encodeURIComponent(due.themeId)}`,
+            ? buildAppUrl(`themes/${encodeURIComponent(due.themeId)}/review`)
+            : buildAppUrl(`themes/${encodeURIComponent(due.themeId)}`),
       },
     });
   }
@@ -353,7 +358,7 @@ self.addEventListener("periodicsync", (event) => {
 });
 
 self.addEventListener("notificationclick", (event) => {
-  const url = event.notification?.data?.url || "/";
+  const url = event.notification?.data?.url || buildAppUrl();
   event.notification.close();
 
   event.waitUntil(
