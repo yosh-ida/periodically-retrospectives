@@ -6,6 +6,9 @@ import type {
 } from "../../domain.ts";
 import { updateNotificationSettings } from "../../domain.ts";
 
+const DAY_IN_MS = 86_400_000;
+const LAST_MINUTE_OF_DAY = 24 * 60 - 1;
+
 export type NotificationRegistration = {
   theme: ReflectionTheme;
   settings: NotificationSettings;
@@ -26,8 +29,62 @@ type PickLatestDueNotificationInput = {
   now: number;
 };
 
-function formatDateKey(timestamp: number) {
-  return new Date(timestamp).toISOString().slice(0, 10);
+type LocalDateParts = {
+  year: number;
+  month: number;
+  day: number;
+};
+
+type DueRuleSlot = {
+  dateKey: string;
+  scheduledMinutes: number;
+};
+
+function padDatePart(value: number) {
+  return String(value).padStart(2, "0");
+}
+
+function getLocalDateParts(timestamp: number): LocalDateParts {
+  const date = new Date(timestamp);
+  return {
+    year: date.getFullYear(),
+    month: date.getMonth() + 1,
+    day: date.getDate(),
+  };
+}
+
+function formatDateKeyFromParts(parts: LocalDateParts) {
+  return `${parts.year}-${padDatePart(parts.month)}-${padDatePart(parts.day)}`;
+}
+
+function parseDateKey(dateKey: string): LocalDateParts {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  return { year, month, day };
+}
+
+function getDayIndexFromParts(parts: LocalDateParts) {
+  return Math.floor(Date.UTC(parts.year, parts.month - 1, parts.day) / DAY_IN_MS);
+}
+
+function getDayIndexFromTimestamp(timestamp: number) {
+  return getDayIndexFromParts(getLocalDateParts(timestamp));
+}
+
+function getDayIndexFromDateKey(dateKey: string) {
+  return getDayIndexFromParts(parseDateKey(dateKey));
+}
+
+function formatDateKeyFromDayIndex(dayIndex: number) {
+  const date = new Date(dayIndex * DAY_IN_MS);
+  return formatDateKeyFromParts({
+    year: date.getUTCFullYear(),
+    month: date.getUTCMonth() + 1,
+    day: date.getUTCDate(),
+  });
+}
+
+function getLocalWeekdayFromDayIndex(dayIndex: number) {
+  return new Date(dayIndex * DAY_IN_MS).getUTCDay();
 }
 
 function getMinutesFromTime(value: string) {
@@ -35,26 +92,86 @@ function getMinutesFromTime(value: string) {
   return hour * 60 + minute;
 }
 
+function formatTimeFromMinutes(totalMinutes: number) {
+  return `${padDatePart(Math.floor(totalMinutes / 60))}:${padDatePart(totalMinutes % 60)}`;
+}
+
 function getCurrentMinutes(timestamp: number) {
   const date = new Date(timestamp);
-  return date.getUTCHours() * 60 + date.getUTCMinutes();
+  return date.getHours() * 60 + date.getMinutes();
 }
 
-function daysBetween(anchorDate: string, currentDate: string) {
-  const anchor = Date.parse(`${anchorDate}T00:00:00.000Z`);
-  const current = Date.parse(`${currentDate}T00:00:00.000Z`);
-  return Math.floor((current - anchor) / 86_400_000);
-}
+function findLatestDueTime(times: string[], maxScheduledMinutes: number) {
+  let latest: number | null = null;
 
-function matchesRule(rule: NotificationRule, timestamp: number) {
-  const currentDate = formatDateKey(timestamp);
+  for (const time of times) {
+    const scheduledMinutes = getMinutesFromTime(time);
+    if (scheduledMinutes > maxScheduledMinutes) {
+      continue;
+    }
 
-  if (rule.type === "every-n-days") {
-    const diffDays = daysBetween(rule.anchorDate, currentDate);
-    return diffDays >= 0 && diffDays % rule.intervalDays === 0;
+    if (latest === null || scheduledMinutes > latest) {
+      latest = scheduledMinutes;
+    }
   }
 
-  return rule.weekdays.includes(new Date(timestamp).getUTCDay());
+  return latest;
+}
+
+function findLatestDueRuleSlot(rule: NotificationRule, now: number): DueRuleSlot | null {
+  const currentDayIndex = getDayIndexFromTimestamp(now);
+  const currentMinutes = getCurrentMinutes(now);
+
+  if (rule.type === "every-n-days") {
+    const anchorDayIndex = getDayIndexFromDateKey(rule.anchorDate);
+    if (anchorDayIndex > currentDayIndex) {
+      return null;
+    }
+
+    let candidateDayIndex =
+      currentDayIndex - ((currentDayIndex - anchorDayIndex) % rule.intervalDays);
+
+    while (candidateDayIndex >= anchorDayIndex) {
+      const latestDueTime = findLatestDueTime(
+        rule.times,
+        candidateDayIndex === currentDayIndex ? currentMinutes : LAST_MINUTE_OF_DAY,
+      );
+      if (latestDueTime !== null) {
+        return {
+          dateKey: formatDateKeyFromDayIndex(candidateDayIndex),
+          scheduledMinutes: latestDueTime,
+        };
+      }
+
+      candidateDayIndex -= rule.intervalDays;
+    }
+
+    return null;
+  }
+
+  if (rule.weekdays.length === 0) {
+    return null;
+  }
+
+  for (let offset = 0; offset < 14; offset += 1) {
+    const candidateDayIndex = currentDayIndex - offset;
+    if (!rule.weekdays.includes(getLocalWeekdayFromDayIndex(candidateDayIndex))) {
+      continue;
+    }
+
+    const latestDueTime = findLatestDueTime(
+      rule.times,
+      candidateDayIndex === currentDayIndex ? currentMinutes : LAST_MINUTE_OF_DAY,
+    );
+    if (latestDueTime !== null) {
+      return {
+        dateKey: formatDateKeyFromDayIndex(candidateDayIndex),
+        scheduledMinutes: latestDueTime,
+      };
+    }
+  }
+
+  return null;
 }
 
 function buildSlotId(channel: NotificationChannel, dateKey: string, time: string) {
@@ -84,9 +201,7 @@ export function pickLatestDueNotification({
     return null;
   }
 
-  const dateKey = formatDateKey(now);
-  const currentMinutes = getCurrentMinutes(now);
-  const candidates: Array<DueNotification & { scheduledMinutes: number }> = [];
+  const candidates: Array<DueNotification & { scheduledAtSortKey: number }> = [];
 
   const channels: Array<[NotificationChannel, NotificationSettings["channels"]["checkIn"]]> = [
     ["check-in", settings.channels.checkIn],
@@ -99,41 +214,37 @@ export function pickLatestDueNotification({
     }
 
     for (const rule of channelSettings.rules) {
-      if (!matchesRule(rule, now)) {
+      const dueSlot = findLatestDueRuleSlot(rule, now);
+      if (!dueSlot) {
         continue;
       }
 
-      for (const time of rule.times) {
-        const scheduledMinutes = getMinutesFromTime(time);
-        if (scheduledMinutes > currentMinutes) {
-          continue;
-        }
-
-        const slotId = buildSlotId(channel, dateKey, time);
-        if (slotId === settings.lastNotifiedSlotId) {
-          continue;
-        }
-
-        const copy = buildNotificationCopy(channel, theme);
-        candidates.push({
-          ...copy,
-          channel,
-          settingsId: settings.id,
-          slotId,
-          themeId: theme.id,
-          scheduledMinutes,
-        });
+      const time = formatTimeFromMinutes(dueSlot.scheduledMinutes);
+      const slotId = buildSlotId(channel, dueSlot.dateKey, time);
+      if (slotId === settings.lastNotifiedSlotId) {
+        continue;
       }
+
+      const copy = buildNotificationCopy(channel, theme);
+      candidates.push({
+        ...copy,
+        channel,
+        settingsId: settings.id,
+        slotId,
+        themeId: theme.id,
+        scheduledAtSortKey:
+          getDayIndexFromDateKey(dueSlot.dateKey) * 24 * 60 + dueSlot.scheduledMinutes,
+      });
     }
   }
 
-  candidates.sort((left, right) => right.scheduledMinutes - left.scheduledMinutes);
+  candidates.sort((left, right) => right.scheduledAtSortKey - left.scheduledAtSortKey);
   const latest = candidates[0];
   if (!latest) {
     return null;
   }
 
-  const { scheduledMinutes: _scheduledMinutes, ...dueNotification } = latest;
+  const { scheduledAtSortKey: _scheduledAtSortKey, ...dueNotification } = latest;
   return dueNotification;
 }
 
