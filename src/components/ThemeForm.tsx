@@ -11,6 +11,7 @@ import {
 import { useEffect, useState } from "react";
 
 import type { NotificationSettings, ThemeInput } from "../domain.ts";
+import { canContinueToNotificationSetup } from "../pages/themeFormMessages.ts";
 
 type ThemeFormProps = {
   initialValue: ThemeInput;
@@ -18,6 +19,7 @@ type ThemeFormProps = {
   notificationSettings: NotificationSettings[];
   onCreateNotificationReference: () => Promise<string>;
   onSubmit: (value: ThemeInput) => Promise<void>;
+  onSubmitAndConfigureNotifications?: (value: ThemeInput) => Promise<void>;
   submitLabel: string;
 };
 
@@ -27,6 +29,7 @@ export function ThemeForm({
   notificationSettings,
   onCreateNotificationReference,
   onSubmit,
+  onSubmitAndConfigureNotifications,
   submitLabel,
 }: ThemeFormProps) {
   const [value, setValue] = useState(initialValue);
@@ -36,11 +39,17 @@ export function ThemeForm({
     setValue(initialValue);
   }, [initialValue]);
 
+  const canContinue = canContinueToNotificationSetup(value.notificationSettingsId);
+
   const handleChange = (field: keyof ThemeInput, fieldValue: string | null) => {
     setValue((current) => ({
       ...current,
       [field]: fieldValue,
     }));
+  };
+
+  const handleError = (error: unknown, fallback: string) => {
+    setErrorMessage(error instanceof Error ? error.message : fallback);
   };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -50,7 +59,21 @@ export function ThemeForm({
     try {
       await onSubmit(value);
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "保存に失敗しました。");
+      handleError(error, "保存に失敗しました。");
+    }
+  };
+
+  const handleSubmitAndConfigureNotifications = async () => {
+    if (!onSubmitAndConfigureNotifications) {
+      return;
+    }
+
+    setErrorMessage("");
+
+    try {
+      await onSubmitAndConfigureNotifications(value);
+    } catch (error) {
+      handleError(error, "保存に失敗しました。");
     }
   };
 
@@ -64,9 +87,7 @@ export function ThemeForm({
         notificationSettingsId,
       }));
     } catch (error) {
-      setErrorMessage(
-        error instanceof Error ? error.message : "通知設定参照の作成に失敗しました。",
-      );
+      handleError(error, "通知設定参照の作成に失敗しました。");
     }
   };
 
@@ -75,9 +96,10 @@ export function ThemeForm({
       <CardContent>
         <Stack component="form" spacing={3} onSubmit={handleSubmit}>
           <Stack spacing={1}>
-            <Typography variant="h5">反省点の内容</Typography>
+            <Typography variant="h5">テーマの整理</Typography>
             <Typography color="text.secondary">
-              通知ルールそのものはまだ Phase 4 以降で実装します。ここでは既存の通知設定への参照だけを紐づけます。
+              課題、原因、目指したいゴールをまとめます。通知設定画面へ進むには、
+              先に通知設定参照を割り当ててから保存します。
             </Typography>
           </Stack>
 
@@ -100,7 +122,7 @@ export function ThemeForm({
             multiline
           />
           <TextField
-            label="達成したいゴール"
+            label="目指したいゴール"
             value={value.goal}
             onChange={(event) => handleChange("goal", event.target.value)}
             required
@@ -111,13 +133,14 @@ export function ThemeForm({
           <Stack spacing={1.5}>
             <TextField
               select
-              label="通知設定への参照"
+              label="通知設定参照"
               value={value.notificationSettingsId ?? ""}
               onChange={(event) =>
                 handleChange("notificationSettingsId", event.target.value || null)
               }
+              helperText="既存の通知設定を関連づけるか、下のボタンで新しく参照を作成できます。"
             >
-              <MenuItem value="">関連づけなし</MenuItem>
+              <MenuItem value="">関連づけない</MenuItem>
               {notificationSettings.map((settings) => (
                 <MenuItem key={settings.id} value={settings.id}>
                   {settings.id} {settings.enabled ? "(enabled)" : "(disabled)"}
@@ -125,14 +148,31 @@ export function ThemeForm({
               ))}
             </TextField>
             <Button variant="outlined" onClick={handleCreateReference} disabled={isBusy}>
-              無効な通知設定参照を新規作成
+              新しい通知設定参照を作成
             </Button>
+            {onSubmitAndConfigureNotifications ? (
+              <Alert severity={canContinue ? "info" : "warning"}>
+                {canContinue
+                  ? "通知設定参照が割り当てられているので、そのまま通知設定画面へ進めます。"
+                  : "通知設定画面へ進むには、先に通知設定参照を割り当ててください。"}
+              </Alert>
+            ) : null}
           </Stack>
 
           <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
             <Button type="submit" variant="contained" disabled={isBusy}>
               {submitLabel}
             </Button>
+            {onSubmitAndConfigureNotifications ? (
+              <Button
+                type="button"
+                variant="outlined"
+                disabled={isBusy || !canContinue}
+                onClick={() => void handleSubmitAndConfigureNotifications()}
+              >
+                作成して通知設定へ進む
+              </Button>
+            ) : null}
           </Stack>
         </Stack>
       </CardContent>

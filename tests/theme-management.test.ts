@@ -19,6 +19,11 @@ import {
   parseRoute,
   type AppRoute,
 } from "../src/routes.ts";
+import {
+  buildCreateThemeSuccessMessage,
+  canContinueToNotificationSetup,
+  validateNotificationSetupAssignment,
+} from "../src/pages/themeFormMessages.ts";
 
 function run(name: string, fn: () => void) {
   try {
@@ -228,4 +233,18 @@ run("STORE_SCHEMAS keeps the Phase 1 IndexedDB indexes from the data model", () 
     reviews: "id, themeId, reviewedAt, [themeId+reviewedAt], updatedAt",
     notificationSettings: "id, enabled, updatedAt",
   });
+});
+
+run("buildCreateThemeSuccessMessage formats the create-and-configure flow copy", () => {
+  assert.equal(
+    buildCreateThemeSuccessMessage("Write clearer updates", true),
+    "「Write clearer updates」を作成しました。続けて通知設定を仕上げます。",
+  );
+});
+
+run("buildCreateThemeSuccessMessage keeps the standard create copy otherwise", () => {
+  assert.equal(
+    buildCreateThemeSuccessMessage("Write clearer updates", false),
+    "「Write clearer updates」を作成しました。",
+  );
 });

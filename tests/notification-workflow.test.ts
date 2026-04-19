@@ -13,6 +13,7 @@ import {
   derivePwaAvailability,
   getPwaOnboardingMessage,
 } from "../src/features/notifications/runtime.ts";
+import { describeNotificationRule } from "../src/features/notifications/ui.ts";
 import {
   buildPath,
   formatRouteTitle,
@@ -454,5 +455,30 @@ run("getPwaOnboardingMessage guides users toward install and standalone launch",
       body:
         "通知導線はインストール済み PWA をアプリ表示で起動している前提です。インストール後に権限許可と periodic sync 登録へ進んでください。",
     },
+  );
+});
+
+run("describeNotificationRule renders every-n-days rules for UI summaries", () => {
+  assert.equal(
+    describeNotificationRule({
+      id: "rule-1",
+      type: "every-n-days",
+      intervalDays: 2,
+      anchorDate: "2026-04-18",
+      times: ["09:00", "18:30"],
+    }),
+    "2日ごと / 基準日 2026-04-18 / 09:00, 18:30",
+  );
+});
+
+run("describeNotificationRule renders weekly-days rules for UI summaries", () => {
+  assert.equal(
+    describeNotificationRule({
+      id: "rule-2",
+      type: "weekly-days",
+      weekdays: [1, 4],
+      times: ["20:00"],
+    }),
+    "毎週 Mon, Thu / 20:00",
   );
 });

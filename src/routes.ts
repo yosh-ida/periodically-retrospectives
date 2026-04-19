@@ -93,7 +93,7 @@ export function formatRouteTitle(route: AppRoute) {
     case "theme-new":
       return "新しいテーマ";
     case "theme-detail":
-      return "テーマの詳細";
+      return "テーマ詳細";
     case "theme-edit":
       return "テーマを編集";
     case "theme-review":

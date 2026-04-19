@@ -40,11 +40,6 @@ export function AppShell({ children, description, route, title }: AppShellProps)
                 alignItems={{ xs: "flex-start", md: "center" }}
               >
                 <Stack spacing={1}>
-                  <Chip
-                    label="Phase 6 仕上げ"
-                    color="secondary"
-                    sx={{ width: "fit-content" }}
-                  />
                   <Typography variant="h3">{title}</Typography>
                   <Typography color="text.secondary">{description}</Typography>
                 </Stack>
@@ -53,13 +48,13 @@ export function AppShell({ children, description, route, title }: AppShellProps)
                     ダッシュボード
                   </Button>
                   <Button variant="contained" onClick={() => navigate({ name: "theme-new" })}>
-                    反省点を追加
+                    テーマを追加
                   </Button>
                 </Stack>
               </Stack>
               {route.name === "not-found" ? (
                 <Alert severity="warning">
-                  存在しないページに移動しました。ダッシュボードからやり直せます。
+                  指定したページは見つかりませんでした。ダッシュボードから目的の画面へ戻れます。
                 </Alert>
               ) : null}
             </Stack>

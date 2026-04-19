@@ -65,14 +65,17 @@ export function ThemeDetailPage({ themeId }: ThemeDetailPageProps) {
     chartPoints.find((point) => point.periodKey === selectedPeriodKey) ?? null;
 
   if (detail === null) {
-    return <Alert severity="error">対象の反省点が見つかりませんでした。</Alert>;
+    return <Alert severity="error">対象のテーマが見つかりませんでした。</Alert>;
   }
 
   if (!detail) {
-    return <Alert severity="info">反省点を読み込んでいます。</Alert>;
+    return <Alert severity="info">テーマを読み込み中です。</Alert>;
   }
 
-  const handleIntervalChange = (_event: React.MouseEvent<HTMLElement>, value: ChartInterval | null) => {
+  const handleIntervalChange = (
+    _event: React.MouseEvent<HTMLElement>,
+    value: ChartInterval | null,
+  ) => {
     if (!value) {
       return;
     }
@@ -106,7 +109,13 @@ export function ThemeDetailPage({ themeId }: ThemeDetailPageProps) {
                 variant="contained"
                 onClick={() => navigate({ name: "theme-review", themeId: detail.theme.id })}
               >
-                振り返りを記録
+                レビューを記録
+              </Button>
+              <Button
+                variant="outlined"
+                onClick={() => navigate({ name: "theme-notifications", themeId: detail.theme.id })}
+              >
+                通知設定へ
               </Button>
               <Button
                 variant="outlined"
@@ -125,12 +134,12 @@ export function ThemeDetailPage({ themeId }: ThemeDetailPageProps) {
       <Card>
         <CardContent>
           <Stack spacing={2}>
-            <Typography variant="h5">通知設定との関連づけ</Typography>
+            <Typography variant="h5">通知設定との関連</Typography>
             {detail.notificationSettings ? (
               <Paper variant="outlined" sx={{ p: 2.5 }}>
-                <Typography>参照 ID: {detail.notificationSettings.id}</Typography>
+                <Typography>関連 ID: {detail.notificationSettings.id}</Typography>
                 <Typography color="text.secondary" variant="body2">
-                  状態: {detail.notificationSettings.enabled ? "有効" : "無効"}
+                  全体状態: {detail.notificationSettings.enabled ? "有効" : "無効"}
                 </Typography>
                 <Typography color="text.secondary" variant="body2">
                   check-in ルール数: {detail.notificationSettings.channels.checkIn.rules.length}
@@ -141,7 +150,7 @@ export function ThemeDetailPage({ themeId }: ThemeDetailPageProps) {
               </Paper>
             ) : (
               <Alert severity="info">
-                この反省点には通知設定が紐づいていません。編集画面からあとで関連づけできます。
+                このテーマにはまだ通知設定が関連づいていません。通知設定ページから追加できます。
               </Alert>
             )}
           </Stack>
@@ -158,9 +167,9 @@ export function ThemeDetailPage({ themeId }: ThemeDetailPageProps) {
               alignItems={{ xs: "flex-start", md: "center" }}
             >
               <Box>
-                <Typography variant="h5">振り返り推移</Typography>
+                <Typography variant="h5">レビュー推移</Typography>
                 <Typography color="text.secondary">
-                  7 段階評価の推移を確認し、メモ付きの点から補足内容を開けます。
+                  7 段階評価の推移を確認し、メモ付きの記録から背景を追えます。
                 </Typography>
               </Box>
               <ToggleButtonGroup
@@ -170,8 +179,8 @@ export function ThemeDetailPage({ themeId }: ThemeDetailPageProps) {
                 onChange={handleIntervalChange}
               >
                 <ToggleButton value="raw">そのまま</ToggleButton>
-                <ToggleButton value="weekly">週単位</ToggleButton>
-                <ToggleButton value="monthly">月単位</ToggleButton>
+                <ToggleButton value="weekly">週次</ToggleButton>
+                <ToggleButton value="monthly">月次</ToggleButton>
               </ToggleButtonGroup>
             </Stack>
             <Divider />
@@ -182,20 +191,20 @@ export function ThemeDetailPage({ themeId }: ThemeDetailPageProps) {
                 onSelectPoint={setSelectedPeriodKey}
               />
             ) : (
-              <Alert severity="info">まだ振り返り履歴はありません。最初の 1 件を記録して推移を作りましょう。</Alert>
+              <Alert severity="info">
+                まだレビュー履歴がありません。最初の 1 件を記録して推移を作りましょう。
+              </Alert>
             )}
             {selectedPoint?.notes.length ? (
               <Paper variant="outlined" sx={{ p: 2.5 }}>
                 <Stack spacing={1.5}>
-                  <Typography variant="subtitle1">選択したデータ点のメモ</Typography>
-                <Typography color="text.secondary" variant="body2">
+                  <Typography variant="subtitle1">選択した期間のメモ</Typography>
+                  <Typography color="text.secondary" variant="body2">
                     {selectedPoint.label} / 評価 {selectedPoint.score}
                   </Typography>
                   {selectedPoint.notes.map((note) => (
                     <Paper key={note.id} variant="outlined" sx={{ p: 2 }}>
-                      <Typography variant="body2">
-                        {formatDate(note.reviewedAt)}
-                      </Typography>
+                      <Typography variant="body2">{formatDate(note.reviewedAt)}</Typography>
                       <Typography color="text.secondary">{note.note}</Typography>
                     </Paper>
                   ))}
@@ -203,7 +212,7 @@ export function ThemeDetailPage({ themeId }: ThemeDetailPageProps) {
               </Paper>
             ) : null}
             <Divider />
-            <Typography variant="h6">振り返り履歴</Typography>
+            <Typography variant="h6">レビュー履歴</Typography>
             {detail.reviews.length ? (
               <Stack spacing={1.5}>
                 {detail.reviews.map((review) => (
@@ -225,14 +234,14 @@ export function ThemeDetailPage({ themeId }: ThemeDetailPageProps) {
                         variant="text"
                         onClick={() => navigate({ name: "theme-review", themeId: detail.theme.id })}
                       >
-                        振り返りページで確認
+                        レビューページで確認
                       </Button>
                     </Stack>
                   </Paper>
                 ))}
               </Stack>
             ) : (
-              <Typography color="text.secondary">まだ振り返り履歴はありません。</Typography>
+              <Typography color="text.secondary">まだレビュー履歴はありません。</Typography>
             )}
           </Stack>
         </CardContent>
@@ -338,7 +347,7 @@ function ReviewTrendChart({
         </Box>
       </Box>
       <Typography color="text.secondary" variant="body2">
-        メモ付きの点は強調表示されます。点を選ぶと、その時点または集約期間に含まれるメモだけを確認できます。
+        メモ付きの点は強調表示されます。点を選ぶと、その期間に含まれるメモだけを確認できます。
       </Typography>
     </Stack>
   );
