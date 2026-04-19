@@ -166,7 +166,7 @@ run("pickLatestDueNotification chooses the latest due check-in slot for the curr
   );
 
   const due = pickLatestDueNotification({
-    now: atUtc(2026, 4, 20, 10, 30),
+    now: Date.parse("2026-04-20T10:30:00+09:00"),
     settings,
     theme,
   });
@@ -216,12 +216,111 @@ run("pickLatestDueNotification skips slots that were already notified", () => {
   );
 
   const due = pickLatestDueNotification({
-    now: atUtc(2026, 4, 20, 21, 0),
+    now: Date.parse("2026-04-20T21:00:00+09:00"),
     settings,
     theme,
   });
 
   assert.equal(due, null);
+});
+
+run("pickLatestDueNotification uses the local day when building every-n-days slots", () => {
+  const theme = createReflectionTheme(
+    {
+      issue: "日付またぎ直後のチェックインを取りこぼしたくない",
+      cause: "UTC 日付で評価すると前日扱いになる",
+      goal: "ローカル日付で当日のスロットを判定する",
+    },
+    atUtc(2026, 4, 18, 9, 0),
+  );
+  const settings = createNotificationSettings(
+    {
+      enabled: true,
+      channels: {
+        checkIn: {
+          enabled: true,
+          rules: [
+            {
+              id: "rule-checkin-local-day",
+              type: "every-n-days",
+              intervalDays: 2,
+              anchorDate: "2026-04-18",
+              times: ["00:15"],
+            },
+          ],
+        },
+        review: {
+          enabled: false,
+          rules: [],
+        },
+      },
+    },
+    atUtc(2026, 4, 18, 9, 1),
+  );
+
+  const due = pickLatestDueNotification({
+    now: Date.parse("2026-04-20T00:30:00+09:00"),
+    settings,
+    theme,
+  });
+
+  assert.deepEqual(due, {
+    body: "日付またぎ直後のチェックインを取りこぼしたくない",
+    channel: "check-in",
+    settingsId: settings.id,
+    slotId: "check-in-2026-04-20T00:15",
+    themeId: theme.id,
+    title: "チェックインの時間です",
+  });
+});
+
+run("pickLatestDueNotification evaluates weekly-days using the local weekday", () => {
+  const theme = createReflectionTheme(
+    {
+      issue: "週の初めに振り返りを始めたい",
+      cause: "ローカルでは月曜でも UTC では日曜になる時間帯がある",
+      goal: "曜日判定もローカルタイムで揃える",
+    },
+    atUtc(2026, 4, 18, 9, 0),
+  );
+  const settings = createNotificationSettings(
+    {
+      enabled: true,
+      channels: {
+        checkIn: {
+          enabled: false,
+          rules: [],
+        },
+        review: {
+          enabled: true,
+          rules: [
+            {
+              id: "rule-review-local-weekday",
+              type: "weekly-days",
+              weekdays: [1],
+              times: ["00:15"],
+            },
+          ],
+        },
+      },
+    },
+    atUtc(2026, 4, 18, 9, 1),
+  );
+
+  const due = pickLatestDueNotification({
+    now: Date.parse("2026-04-20T00:30:00+09:00"),
+    settings,
+    theme,
+  });
+
+  assert.deepEqual(due, {
+    body: "週の初めに振り返りを始めたい",
+    channel: "review",
+    settingsId: settings.id,
+    slotId: "review-2026-04-20T00:15",
+    themeId: theme.id,
+    title: "振り返りの時間です",
+  });
 });
 
 run("runNotificationCheck updates runtime state when a notification is emitted", () => {
@@ -259,7 +358,7 @@ run("runNotificationCheck updates runtime state when a notification is emitted",
   );
 
   const result = runNotificationCheck({
-    now: atUtc(2026, 4, 20, 20, 30),
+    now: Date.parse("2026-04-20T20:30:00+09:00"),
     registrations: [{ settings, theme }],
   });
 
@@ -270,7 +369,10 @@ run("runNotificationCheck updates runtime state when a notification is emitted",
     result.updatedSettings[0]?.lastNotifiedSlotId,
     "review-2026-04-20T20:00",
   );
-  assert.equal(result.updatedSettings[0]?.lastCheckedAt, atUtc(2026, 4, 20, 20, 30));
+  assert.equal(
+    result.updatedSettings[0]?.lastCheckedAt,
+    Date.parse("2026-04-20T20:30:00+09:00"),
+  );
 });
 
 run("derivePwaAvailability enables install only when the prompt is available outside standalone mode", () => {

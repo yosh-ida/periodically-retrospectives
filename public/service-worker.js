@@ -1,5 +1,7 @@
 const DATABASE_NAME = "periodicallyRetrospectives";
 const PERIODIC_SYNC_TAG = "reflection-notification-check";
+const DAY_IN_MS = 86400000;
+const LAST_MINUTE_OF_DAY = 24 * 60 - 1;
 
 function openDatabase() {
   return new Promise((resolve, reject) => {
@@ -41,8 +43,51 @@ async function putRecords(storeName, records) {
   });
 }
 
-function formatDateKey(timestamp) {
-  return new Date(timestamp).toISOString().slice(0, 10);
+function padDatePart(value) {
+  return String(value).padStart(2, "0");
+}
+
+function getLocalDateParts(timestamp) {
+  const date = new Date(timestamp);
+  return {
+    year: date.getFullYear(),
+    month: date.getMonth() + 1,
+    day: date.getDate(),
+  };
+}
+
+function formatDateKeyFromParts(parts) {
+  return `${parts.year}-${padDatePart(parts.month)}-${padDatePart(parts.day)}`;
+}
+
+function parseDateKey(dateKey) {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  return { year, month, day };
+}
+
+function getDayIndexFromParts(parts) {
+  return Math.floor(Date.UTC(parts.year, parts.month - 1, parts.day) / DAY_IN_MS);
+}
+
+function getDayIndexFromTimestamp(timestamp) {
+  return getDayIndexFromParts(getLocalDateParts(timestamp));
+}
+
+function getDayIndexFromDateKey(dateKey) {
+  return getDayIndexFromParts(parseDateKey(dateKey));
+}
+
+function formatDateKeyFromDayIndex(dayIndex) {
+  const date = new Date(dayIndex * DAY_IN_MS);
+  return formatDateKeyFromParts({
+    year: date.getUTCFullYear(),
+    month: date.getUTCMonth() + 1,
+    day: date.getUTCDate(),
+  });
+}
+
+function getLocalWeekdayFromDayIndex(dayIndex) {
+  return new Date(dayIndex * DAY_IN_MS).getUTCDay();
 }
 
 function getMinutesFromTime(value) {
@@ -50,26 +95,85 @@ function getMinutesFromTime(value) {
   return hour * 60 + minute;
 }
 
+function formatTimeFromMinutes(totalMinutes) {
+  return `${padDatePart(Math.floor(totalMinutes / 60))}:${padDatePart(totalMinutes % 60)}`;
+}
+
 function getCurrentMinutes(timestamp) {
   const date = new Date(timestamp);
-  return date.getUTCHours() * 60 + date.getUTCMinutes();
+  return date.getHours() * 60 + date.getMinutes();
 }
 
-function daysBetween(anchorDate, currentDate) {
-  const anchor = Date.parse(`${anchorDate}T00:00:00.000Z`);
-  const current = Date.parse(`${currentDate}T00:00:00.000Z`);
-  return Math.floor((current - anchor) / 86400000);
-}
+function findLatestDueTime(times, maxScheduledMinutes) {
+  let latest = null;
 
-function matchesRule(rule, timestamp) {
-  const currentDate = formatDateKey(timestamp);
+  for (const time of times) {
+    const scheduledMinutes = getMinutesFromTime(time);
+    if (scheduledMinutes > maxScheduledMinutes) {
+      continue;
+    }
 
-  if (rule.type === "every-n-days") {
-    const diffDays = daysBetween(rule.anchorDate, currentDate);
-    return diffDays >= 0 && diffDays % rule.intervalDays === 0;
+    if (latest === null || scheduledMinutes > latest) {
+      latest = scheduledMinutes;
+    }
   }
 
-  return rule.weekdays.includes(new Date(timestamp).getUTCDay());
+  return latest;
+}
+
+function findLatestDueRuleSlot(rule, now) {
+  const currentDayIndex = getDayIndexFromTimestamp(now);
+  const currentMinutes = getCurrentMinutes(now);
+  if (rule.type === "every-n-days") {
+    const anchorDayIndex = getDayIndexFromDateKey(rule.anchorDate);
+    if (anchorDayIndex > currentDayIndex) {
+      return null;
+    }
+
+    let candidateDayIndex =
+      currentDayIndex - ((currentDayIndex - anchorDayIndex) % rule.intervalDays);
+
+    while (candidateDayIndex >= anchorDayIndex) {
+      const latestDueTime = findLatestDueTime(
+        rule.times,
+        candidateDayIndex === currentDayIndex ? currentMinutes : LAST_MINUTE_OF_DAY,
+      );
+      if (latestDueTime !== null) {
+        return {
+          dateKey: formatDateKeyFromDayIndex(candidateDayIndex),
+          scheduledMinutes: latestDueTime,
+        };
+      }
+
+      candidateDayIndex -= rule.intervalDays;
+    }
+
+    return null;
+  }
+
+  if (rule.weekdays.length === 0) {
+    return null;
+  }
+
+  for (let offset = 0; offset < 14; offset += 1) {
+    const candidateDayIndex = currentDayIndex - offset;
+    if (!rule.weekdays.includes(getLocalWeekdayFromDayIndex(candidateDayIndex))) {
+      continue;
+    }
+
+    const latestDueTime = findLatestDueTime(
+      rule.times,
+      candidateDayIndex === currentDayIndex ? currentMinutes : LAST_MINUTE_OF_DAY,
+    );
+    if (latestDueTime !== null) {
+      return {
+        dateKey: formatDateKeyFromDayIndex(candidateDayIndex),
+        scheduledMinutes: latestDueTime,
+      };
+    }
+  }
+
+  return null;
 }
 
 function buildSlotId(channel, dateKey, time) {
@@ -95,8 +199,6 @@ function pickLatestDueNotification(theme, settings, now) {
     return null;
   }
 
-  const dateKey = formatDateKey(now);
-  const currentMinutes = getCurrentMinutes(now);
   const channels = [
     ["check-in", settings.channels.checkIn],
     ["review", settings.channels.review],
@@ -109,34 +211,36 @@ function pickLatestDueNotification(theme, settings, now) {
     }
 
     for (const rule of channelSettings.rules) {
-      if (!matchesRule(rule, now)) {
+      const dueSlot = findLatestDueRuleSlot(rule, now);
+      if (!dueSlot) {
         continue;
       }
 
-      for (const time of rule.times) {
-        const scheduledMinutes = getMinutesFromTime(time);
-        if (scheduledMinutes > currentMinutes) {
-          continue;
-        }
-
-        const slotId = buildSlotId(channel, dateKey, time);
-        if (slotId === settings.lastNotifiedSlotId) {
-          continue;
-        }
-
-        candidates.push({
-          ...buildNotificationCopy(channel, theme),
-          channel,
-          slotId,
-          scheduledMinutes,
-          themeId: theme.id,
-        });
+      const time = formatTimeFromMinutes(dueSlot.scheduledMinutes);
+      const slotId = buildSlotId(channel, dueSlot.dateKey, time);
+      if (slotId === settings.lastNotifiedSlotId) {
+        continue;
       }
+
+      candidates.push({
+        ...buildNotificationCopy(channel, theme),
+        channel,
+        slotId,
+        scheduledAtSortKey:
+          getDayIndexFromDateKey(dueSlot.dateKey) * 24 * 60 + dueSlot.scheduledMinutes,
+        themeId: theme.id,
+      });
     }
   }
 
-  candidates.sort((left, right) => right.scheduledMinutes - left.scheduledMinutes);
-  return candidates[0] ?? null;
+  candidates.sort((left, right) => right.scheduledAtSortKey - left.scheduledAtSortKey);
+  const latest = candidates[0];
+  if (!latest) {
+    return null;
+  }
+
+  const { scheduledAtSortKey, ...due } = latest;
+  return due;
 }
 
 async function runNotificationCheck(now = Date.now()) {

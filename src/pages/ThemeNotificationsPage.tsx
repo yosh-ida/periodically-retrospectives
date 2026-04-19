@@ -73,6 +73,14 @@ const weekdayOptions = [
   { value: 6, label: "Sat" },
 ] as const;
 
+function getLocalDateInputValue(timestamp = Date.now()) {
+  const date = new Date(timestamp);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 function formatTimestamp(value: number | null | undefined) {
   if (!value) {
     return "まだ実行されていません";
@@ -120,7 +128,7 @@ function createDefaultRule(channel: NotificationChannel): NotificationRule {
       id: createEntityId("rule"),
       type: "every-n-days",
       intervalDays: 2,
-      anchorDate: new Date().toISOString().slice(0, 10),
+      anchorDate: getLocalDateInputValue(),
       times: ["09:00"],
     };
   }
@@ -564,7 +572,7 @@ function ChannelEditor({
                             id: rule.id,
                             type: "every-n-days",
                             intervalDays: 2,
-                            anchorDate: new Date().toISOString().slice(0, 10),
+                            anchorDate: getLocalDateInputValue(),
                             times: ["09:00"],
                           }
                         : {
@@ -612,7 +620,7 @@ function ChannelEditor({
                         anchorDate:
                           current.type === "every-n-days"
                             ? current.anchorDate
-                            : new Date().toISOString().slice(0, 10),
+                            : getLocalDateInputValue(),
                       }))
                     }
                   />
