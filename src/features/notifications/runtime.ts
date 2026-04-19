@@ -1,4 +1,5 @@
 import { checkAndNotify } from "../../db.ts";
+import { buildPath } from "../../routes.ts";
 import type { DueNotification } from "./engine.ts";
 
 export const PERIODIC_SYNC_TAG = "reflection-notification-check";
@@ -267,14 +268,16 @@ async function showNotificationsWithServiceWorker(notifications: DueNotification
   const registration = await navigator.serviceWorker.ready;
 
   for (const notification of notifications) {
+    const url =
+      notification.channel === "review"
+        ? buildPath({ name: "theme-review", themeId: notification.themeId })
+        : buildPath({ name: "theme-detail", themeId: notification.themeId });
+
     await registration.showNotification(notification.title, {
       body: notification.body,
       tag: notification.slotId,
       data: {
-        url:
-          notification.channel === "review"
-            ? `/themes/${encodeURIComponent(notification.themeId)}/review`
-            : `/themes/${encodeURIComponent(notification.themeId)}`,
+        url,
       },
     });
   }

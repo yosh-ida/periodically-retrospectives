@@ -7,7 +7,9 @@ import { registerPwaLifecycleListeners } from "./features/notifications/runtime.
 registerPwaLifecycleListeners();
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("/service-worker.js").catch((error) => {
+  const serviceWorkerUrl = new URL("service-worker.js", new URL(import.meta.env.BASE_URL, window.location.origin));
+
+  navigator.serviceWorker.register(serviceWorkerUrl).catch((error) => {
     console.warn("Failed to register service worker", error);
   });
 }
