@@ -3,9 +3,15 @@ import type { DueNotification } from "./engine.ts";
 
 export const PERIODIC_SYNC_TAG = "reflection-notification-check";
 
+type BeforeInstallPromptEvent = Event & {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
+};
+
 type PeriodicSyncRegistration = ServiceWorkerRegistration & {
   periodicSync?: {
     register: (tag: string, options: { minInterval: number }) => Promise<void>;
+    getTags?: () => Promise<string[]>;
   };
 };
 
@@ -15,6 +21,91 @@ export type BrowserCapabilities = {
   periodicSyncSupported: boolean;
   notificationPermission: NotificationPermission | "unsupported";
 };
+
+export type PwaAvailabilityState = {
+  hasInstallPrompt: boolean;
+  isStandalone: boolean;
+  periodicSyncRegistered: boolean;
+  serviceWorkerControlled: boolean;
+};
+
+export type PwaAvailability = {
+  canInstall: boolean;
+  installStateLabel: "available" | "installed" | "unavailable";
+  periodicSyncStateLabel: "registered" | "not-registered";
+  serviceWorkerStateLabel: "controlled" | "waiting";
+};
+
+export type PwaRuntimeState = BrowserCapabilities &
+  PwaAvailabilityState &
+  PwaAvailability;
+
+let cachedInstallPromptEvent: BeforeInstallPromptEvent | null = null;
+let hasRegisteredPwaListeners = false;
+const pwaListeners = new Set<() => void>();
+
+function emitPwaStateChange() {
+  for (const listener of pwaListeners) {
+    listener();
+  }
+}
+
+function getStandaloneFlag() {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  const standaloneViaMedia =
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(display-mode: standalone)").matches;
+  const standaloneViaNavigator =
+    typeof navigator !== "undefined" &&
+    "standalone" in navigator &&
+    Boolean((navigator as Navigator & { standalone?: boolean }).standalone);
+
+  return standaloneViaMedia || standaloneViaNavigator;
+}
+
+export function derivePwaAvailability(input: PwaAvailabilityState): PwaAvailability {
+  const installStateLabel = input.isStandalone
+    ? "installed"
+    : input.hasInstallPrompt
+      ? "available"
+      : "unavailable";
+
+  return {
+    canInstall: !input.isStandalone && input.hasInstallPrompt,
+    installStateLabel,
+    periodicSyncStateLabel: input.periodicSyncRegistered ? "registered" : "not-registered",
+    serviceWorkerStateLabel: input.serviceWorkerControlled ? "controlled" : "waiting",
+  };
+}
+
+export function registerPwaLifecycleListeners() {
+  if (hasRegisteredPwaListeners || typeof window === "undefined") {
+    return;
+  }
+
+  hasRegisteredPwaListeners = true;
+
+  window.addEventListener("beforeinstallprompt", (event) => {
+    event.preventDefault();
+    cachedInstallPromptEvent = event as BeforeInstallPromptEvent;
+    emitPwaStateChange();
+  });
+
+  window.addEventListener("appinstalled", () => {
+    cachedInstallPromptEvent = null;
+    emitPwaStateChange();
+  });
+}
+
+export function subscribeToPwaRuntimeState(listener: () => void) {
+  pwaListeners.add(listener);
+  return () => {
+    pwaListeners.delete(listener);
+  };
+}
 
 export function getBrowserCapabilities(): BrowserCapabilities {
   const serviceWorkerSupported = typeof navigator !== "undefined" && "serviceWorker" in navigator;
@@ -41,6 +132,44 @@ export async function getDetailedBrowserCapabilities(): Promise<BrowserCapabilit
   };
 }
 
+export async function getPwaRuntimeState(): Promise<PwaRuntimeState> {
+  registerPwaLifecycleListeners();
+
+  const base = getBrowserCapabilities();
+  const pwaState: PwaAvailabilityState = {
+    hasInstallPrompt: cachedInstallPromptEvent !== null,
+    isStandalone: getStandaloneFlag(),
+    periodicSyncRegistered: false,
+    serviceWorkerControlled:
+      typeof navigator !== "undefined" &&
+      "serviceWorker" in navigator &&
+      Boolean(navigator.serviceWorker.controller),
+  };
+
+  if (!base.serviceWorkerSupported) {
+    return {
+      ...base,
+      ...pwaState,
+      ...derivePwaAvailability(pwaState),
+    };
+  }
+
+  const registration = (await navigator.serviceWorker.ready) as PeriodicSyncRegistration;
+  const periodicSyncSupported = "periodicSync" in registration;
+
+  if (registration.periodicSync?.getTags) {
+    const tags = await registration.periodicSync.getTags();
+    pwaState.periodicSyncRegistered = tags.includes(PERIODIC_SYNC_TAG);
+  }
+
+  return {
+    ...base,
+    periodicSyncSupported,
+    ...pwaState,
+    ...derivePwaAvailability(pwaState),
+  };
+}
+
 export async function requestNotificationPermission() {
   if (!("Notification" in window)) {
     return "unsupported" as const;
@@ -62,6 +191,21 @@ export async function registerPeriodicNotificationSync() {
   await registration.periodicSync.register(PERIODIC_SYNC_TAG, {
     minInterval: 12 * 60 * 60 * 1000,
   });
+}
+
+export async function promptPwaInstall() {
+  registerPwaLifecycleListeners();
+
+  if (!cachedInstallPromptEvent || getStandaloneFlag()) {
+    return "unavailable" as const;
+  }
+
+  const promptEvent = cachedInstallPromptEvent;
+  cachedInstallPromptEvent = null;
+  await promptEvent.prompt();
+  const choice = await promptEvent.userChoice;
+  emitPwaStateChange();
+  return choice.outcome;
 }
 
 async function showNotificationsWithServiceWorker(notifications: DueNotification[]) {

@@ -2,6 +2,9 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { CssBaseline, ThemeProvider, createTheme } from "@mui/material";
 import App from "./App.tsx";
+import { registerPwaLifecycleListeners } from "./features/notifications/runtime.ts";
+
+registerPwaLifecycleListeners();
 
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("/service-worker.js").catch((error) => {
