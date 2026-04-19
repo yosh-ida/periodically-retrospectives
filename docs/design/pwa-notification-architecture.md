@@ -43,7 +43,8 @@ UI では次を必ず分岐表示する。
 - `registration.periodicSync` の利用可否を確認する
 - 通知権限を確認、必要なら要求する
 - `granted` の場合のみ periodic sync 登録を試みる
-- デバッグ UI と状態表示を行う
+- 状態表示と通知ルール編集 UI を行う
+- 通知時刻の編集は自由入力ではなく、誤入力を防げる選択式 UI を基本とする
 
 ### Service Worker
 
@@ -56,6 +57,7 @@ UI では次を必ず分岐表示する。
 
 - `checkAndNotify()` を中心に据える
 - 判定、重複防止、通知表示、保存更新を一箇所に集約する
+- フロントエンド、起動時補完、Service Worker のいずれから呼ばれてもローカルタイム基準で同じ結果になるようにする
 - ルール解釈
   - `check-in`
   - `review`
@@ -108,6 +110,11 @@ UI では次を必ず分岐表示する。
 - `checkAndNotify()` 手動実行ボタン
 
 Chrome DevTools の Application パネルにある Periodic background sync デバッグを前提とし、Service Worker とフロントエンドの双方でログを明確に出す。
+
+## Product UI Notes
+
+- 一般ユーザー向け画面では、開発フェーズや未完成前提のコピーを表示しない
+- product ready な画面では、状態説明と設定操作を中心に構成し、内部実装段階を想起させるラベルは避ける
 
 ## Related Documents
 
