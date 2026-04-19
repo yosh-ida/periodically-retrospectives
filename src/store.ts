@@ -11,7 +11,8 @@ type WorkspaceState = {
 
 const initialWorkspaceState = {
   isBusy: false,
-  statusMessage: "Theme management is ready. Create a theme to start tracking a reflection topic.",
+  statusMessage:
+    "反省点の準備ができています。まずは 1 件作成して、振り返りと通知の流れを試せます。",
 };
 
 export const useWorkspaceStore = create<WorkspaceState>((set) => ({

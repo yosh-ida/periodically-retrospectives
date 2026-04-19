@@ -31,6 +31,7 @@ import {
 } from "../domain.ts";
 import {
   getPwaRuntimeState,
+  getPwaOnboardingMessage,
   promptPwaInstall,
   registerPeriodicNotificationSync,
   registerPwaLifecycleListeners,
@@ -74,7 +75,7 @@ const weekdayOptions = [
 
 function formatTimestamp(value: number | null | undefined) {
   if (!value) {
-    return "Not checked yet";
+    return "まだ実行されていません";
   }
 
   return new Date(value).toLocaleString("ja-JP", {
@@ -202,9 +203,10 @@ export function ThemeNotificationsPage({ themeId }: ThemeNotificationsPageProps)
 
     return {
       lastCheckedAt: formatTimestamp(detail.settings.lastCheckedAt),
-      lastNotifiedSlotId: detail.settings.lastNotifiedSlotId ?? "No notification yet",
+      lastNotifiedSlotId: detail.settings.lastNotifiedSlotId ?? "まだ通知はありません",
     };
   }, [detail]);
+  const onboardingMessage = pwaState ? getPwaOnboardingMessage(pwaState) : null;
 
   const refreshPwaState = async () => {
     try {
@@ -245,7 +247,7 @@ export function ThemeNotificationsPage({ themeId }: ThemeNotificationsPageProps)
     setBusy(true);
     try {
       const { settings } = await ensureThemeNotificationSettings(themeId);
-      setStatusMessage(`Prepared notification settings ${settings.id}.`);
+      setStatusMessage(`通知設定 ${settings.id} を準備しました。`);
     } finally {
       setBusy(false);
     }
@@ -259,7 +261,7 @@ export function ThemeNotificationsPage({ themeId }: ThemeNotificationsPageProps)
     setBusy(true);
     try {
       await updateNotificationSettingsRecord(detail.settings.id, formState);
-      setStatusMessage("Saved notification settings.");
+      setStatusMessage("通知設定を保存しました。");
     } finally {
       setBusy(false);
     }
@@ -269,7 +271,7 @@ export function ThemeNotificationsPage({ themeId }: ThemeNotificationsPageProps)
     setBusy(true);
     try {
       const permission = await requestNotificationPermission();
-      setStatusMessage(`Notification permission: ${permission}`);
+      setStatusMessage(`通知権限: ${permission}`);
       await refreshPwaState();
     } finally {
       setBusy(false);
@@ -280,11 +282,11 @@ export function ThemeNotificationsPage({ themeId }: ThemeNotificationsPageProps)
     setBusy(true);
     try {
       await registerPeriodicNotificationSync();
-      setStatusMessage("Registered periodic sync.");
+      setStatusMessage("periodic sync を登録しました。");
       await refreshPwaState();
     } catch (error) {
       setStatusMessage(
-        error instanceof Error ? error.message : "Failed to register periodic sync.",
+        error instanceof Error ? error.message : "periodic sync の登録に失敗しました。",
       );
     } finally {
       setBusy(false);
@@ -297,8 +299,8 @@ export function ThemeNotificationsPage({ themeId }: ThemeNotificationsPageProps)
       const result = await runNotificationCheckNow();
       const summary =
         result.notifications.length > 0
-          ? `Notifications: ${result.notifications.map((item) => item.slotId).join(", ")}`
-          : "No notifications are due right now.";
+          ? `通知対象: ${result.notifications.map((item) => item.slotId).join(", ")}`
+          : "現在通知対象のスロットはありません。";
       setRunSummary(summary);
       setStatusMessage(summary);
       await refreshPwaState();
@@ -313,10 +315,10 @@ export function ThemeNotificationsPage({ themeId }: ThemeNotificationsPageProps)
       const outcome = await promptPwaInstall();
       const message =
         outcome === "accepted"
-          ? "PWA install prompt accepted."
+          ? "PWA のインストールが受け付けられました。"
           : outcome === "dismissed"
-            ? "PWA install prompt dismissed."
-            : "PWA install prompt is not available.";
+            ? "PWA のインストールは見送られました。"
+            : "PWA のインストール導線は利用できません。";
       setStatusMessage(message);
       await refreshPwaState();
     } finally {
@@ -325,11 +327,11 @@ export function ThemeNotificationsPage({ themeId }: ThemeNotificationsPageProps)
   };
 
   if (detail === null) {
-    return <Alert severity="error">Theme not found.</Alert>;
+    return <Alert severity="error">対象の反省点が見つかりませんでした。</Alert>;
   }
 
   if (!detail) {
-    return <Alert severity="info">Loading notification settings...</Alert>;
+    return <Alert severity="info">通知設定ページを読み込んでいます。</Alert>;
   }
 
   return (
@@ -339,34 +341,38 @@ export function ThemeNotificationsPage({ themeId }: ThemeNotificationsPageProps)
           <Stack spacing={2}>
             <Typography variant="h5">{detail.theme.issue}</Typography>
             <Typography color="text.secondary">
-              Configure independent `check-in` and `review` rules for this theme.
+              この反省点に対する `check-in` / `review` の通知ルールを個別に管理します。
             </Typography>
             <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
               <Button variant="text" onClick={() => navigate({ name: "theme-detail", themeId })}>
-                Open detail
+                詳細を見る
               </Button>
               <Button variant="outlined" onClick={() => navigate({ name: "theme-review", themeId })}>
-                Open review editor
+                振り返りページへ
               </Button>
             </Stack>
           </Stack>
         </CardContent>
       </Card>
 
+      {onboardingMessage ? (
+        <Alert severity={onboardingMessage.severity}>
+          <strong>{onboardingMessage.title}</strong> {onboardingMessage.body}
+        </Alert>
+      ) : null}
+
       <Card>
         <CardContent>
           <Stack spacing={2}>
-            <Typography variant="h6">PWA status</Typography>
+            <Typography variant="h6">PWA 状態</Typography>
             <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-              <Chip label={`Install: ${pwaState?.installStateLabel ?? "unknown"}`} color="secondary" />
-              <Chip label={`Display: ${pwaState?.isStandalone ? "standalone" : "browser"}`} />
-              <Chip label={`SW control: ${pwaState?.serviceWorkerStateLabel ?? "unknown"}`} />
-              <Chip label={`Periodic tag: ${pwaState?.periodicSyncStateLabel ?? "unknown"}`} />
+              <Chip label={`インストール: ${pwaState?.installStateLabel ?? "unknown"}`} color="secondary" />
+              <Chip label={`表示モード: ${pwaState?.isStandalone ? "standalone" : "browser"}`} />
+              <Chip label={`Service Worker: ${pwaState?.serviceWorkerStateLabel ?? "unknown"}`} />
+              <Chip label={`Periodic Sync: ${pwaState?.periodicSyncStateLabel ?? "unknown"}`} />
             </Stack>
             <Typography color="text.secondary" variant="body2">
-              This section reflects the installed-PWA flow: install prompt availability,
-              standalone mode, Service Worker control, and the
-              `reflection-notification-check` tag.
+              ここではインストール導線の有無、アプリ表示かどうか、Service Worker 制御、`reflection-notification-check` の登録状態を確認できます。
             </Typography>
             <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
               <Button
@@ -374,10 +380,10 @@ export function ThemeNotificationsPage({ themeId }: ThemeNotificationsPageProps)
                 onClick={handleInstall}
                 disabled={isBusy || !pwaState?.canInstall}
               >
-                Install app
+                アプリとしてインストール
               </Button>
               <Button variant="text" onClick={() => void refreshPwaState()} disabled={isBusy}>
-                Refresh status
+                状態を更新
               </Button>
             </Stack>
           </Stack>
@@ -387,22 +393,22 @@ export function ThemeNotificationsPage({ themeId }: ThemeNotificationsPageProps)
       <Card>
         <CardContent>
           <Stack spacing={2}>
-            <Typography variant="h6">Browser capabilities</Typography>
+            <Typography variant="h6">ブラウザ対応状況</Typography>
             <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-              <Chip label={`Service Worker: ${pwaState?.serviceWorkerSupported ? "yes" : "no"}`} />
-              <Chip label={`Notification: ${pwaState?.notificationSupported ? "yes" : "no"}`} />
-              <Chip label={`Periodic Sync: ${pwaState?.periodicSyncSupported ? "yes" : "no"}`} />
-              <Chip label={`Permission: ${pwaState?.notificationPermission ?? "unknown"}`} color="secondary" />
+              <Chip label={`Service Worker: ${pwaState?.serviceWorkerSupported ? "対応" : "非対応"}`} />
+              <Chip label={`Notification: ${pwaState?.notificationSupported ? "対応" : "非対応"}`} />
+              <Chip label={`Periodic Sync: ${pwaState?.periodicSyncSupported ? "対応" : "非対応"}`} />
+              <Chip label={`通知権限: ${pwaState?.notificationPermission ?? "unknown"}`} color="secondary" />
             </Stack>
             <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
               <Button variant="outlined" onClick={handlePermissionRequest} disabled={isBusy}>
-                Request notification permission
+                通知権限をリクエスト
               </Button>
               <Button variant="outlined" onClick={handleRegisterPeriodicSync} disabled={isBusy}>
-                Register periodic sync
+                periodic sync を登録
               </Button>
               <Button variant="contained" onClick={handleRunCheck} disabled={isBusy}>
-                Run notification check
+                通知判定を手動実行
               </Button>
             </Stack>
             {runSummary ? <Alert severity="info">{runSummary}</Alert> : null}
@@ -415,11 +421,10 @@ export function ThemeNotificationsPage({ themeId }: ThemeNotificationsPageProps)
           <CardContent>
             <Stack spacing={2}>
               <Alert severity="info">
-                This theme does not have a notification settings record yet. Create one
-                before editing rules.
+                この反省点には通知設定レコードがまだありません。ルールを編集する前に準備してください。
               </Alert>
               <Button variant="contained" onClick={handlePrepareSettings} disabled={isBusy}>
-                Prepare notification settings
+                通知設定を準備する
               </Button>
             </Stack>
           </CardContent>
@@ -429,10 +434,9 @@ export function ThemeNotificationsPage({ themeId }: ThemeNotificationsPageProps)
           <CardContent>
             <Stack spacing={3}>
               <Stack spacing={1}>
-                <Typography variant="h6">Notification rules</Typography>
+                <Typography variant="h6">通知ルール</Typography>
                 <Typography color="text.secondary">
-                  Use `every-n-days` and `weekly-days`. Enter multiple times as comma
-                  separated `HH:MM`.
+                  `every-n-days` と `weekly-days` を使えます。時刻は `HH:MM` をカンマ区切りで複数指定できます。
                 </Typography>
               </Stack>
               <FormControlLabel
@@ -442,7 +446,7 @@ export function ThemeNotificationsPage({ themeId }: ThemeNotificationsPageProps)
                     onChange={(_, checked) => setFormState((current) => ({ ...current, enabled: checked }))}
                   />
                 }
-                label="Enable notifications for this theme"
+                label="この反省点の通知を有効にする"
               />
               <Divider />
               <ChannelEditor
@@ -491,17 +495,17 @@ export function ThemeNotificationsPage({ themeId }: ThemeNotificationsPageProps)
               <Divider />
               <Paper variant="outlined" sx={{ p: 2 }}>
                 <Stack spacing={1}>
-                  <Typography variant="subtitle1">Runtime summary</Typography>
+                  <Typography variant="subtitle1">実行状況</Typography>
                   <Typography color="text.secondary" variant="body2">
-                    Last checked: {runtimeSummary?.lastCheckedAt}
+                    最終判定: {runtimeSummary?.lastCheckedAt}
                   </Typography>
                   <Typography color="text.secondary" variant="body2">
-                    Last notified slot: {runtimeSummary?.lastNotifiedSlotId}
+                    最後に通知したスロット: {runtimeSummary?.lastNotifiedSlotId}
                   </Typography>
                 </Stack>
               </Paper>
               <Button variant="contained" onClick={handleSave} disabled={isBusy}>
-                Save notification settings
+                通知設定を保存
               </Button>
             </Stack>
           </CardContent>
@@ -535,14 +539,14 @@ function ChannelEditor({
       <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} justifyContent="space-between">
         <FormControlLabel
           control={<Switch checked={state.enabled} onChange={(_, checked) => onChangeEnabled(checked)} />}
-          label={`Enable ${channelLabel}`}
+          label={`${channelLabel} を有効にする`}
         />
         <Button variant="outlined" onClick={onAddRule}>
-          Add rule
+          ルールを追加
         </Button>
       </Stack>
       {state.rules.length === 0 ? (
-        <Typography color="text.secondary">No rules yet.</Typography>
+        <Typography color="text.secondary">まだルールはありません。</Typography>
       ) : (
         state.rules.map((rule) => (
           <Paper key={rule.id} variant="outlined" sx={{ p: 2 }}>
@@ -579,7 +583,7 @@ function ChannelEditor({
                   name={`${channelLabel}-${rule.id}-times`}
                   size="small"
                   fullWidth
-                  label="times"
+                  label="時刻"
                   value={rule.times.join(", ")}
                   onChange={(event) =>
                     onUpdateRule(rule.id, (current) => ({
@@ -589,7 +593,7 @@ function ChannelEditor({
                   }
                 />
                 <Button color="inherit" onClick={() => onRemoveRule(rule.id)}>
-                  Remove
+                  削除
                 </Button>
               </Stack>
               {rule.type === "every-n-days" ? (
@@ -597,7 +601,7 @@ function ChannelEditor({
                   <TextField
                     name={`${channelLabel}-${rule.id}-interval`}
                     size="small"
-                    label="intervalDays"
+                    label="間隔日数"
                     type="number"
                     value={rule.intervalDays}
                     onChange={(event) =>
@@ -615,7 +619,7 @@ function ChannelEditor({
                   <TextField
                     name={`${channelLabel}-${rule.id}-anchor`}
                     size="small"
-                    label="anchorDate"
+                    label="基準日"
                     type="date"
                     InputLabelProps={{ shrink: true }}
                     value={rule.anchorDate}

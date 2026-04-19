@@ -130,13 +130,13 @@ export function ThemeDetailPage({ themeId }: ThemeDetailPageProps) {
               <Paper variant="outlined" sx={{ p: 2.5 }}>
                 <Typography>参照 ID: {detail.notificationSettings.id}</Typography>
                 <Typography color="text.secondary" variant="body2">
-                  状態: {detail.notificationSettings.enabled ? "enabled" : "disabled"}
+                  状態: {detail.notificationSettings.enabled ? "有効" : "無効"}
                 </Typography>
                 <Typography color="text.secondary" variant="body2">
-                  check-in rules: {detail.notificationSettings.channels.checkIn.rules.length}
+                  check-in ルール数: {detail.notificationSettings.channels.checkIn.rules.length}
                 </Typography>
                 <Typography color="text.secondary" variant="body2">
-                  review rules: {detail.notificationSettings.channels.review.rules.length}
+                  review ルール数: {detail.notificationSettings.channels.review.rules.length}
                 </Typography>
               </Paper>
             ) : (
@@ -188,8 +188,8 @@ export function ThemeDetailPage({ themeId }: ThemeDetailPageProps) {
               <Paper variant="outlined" sx={{ p: 2.5 }}>
                 <Stack spacing={1.5}>
                   <Typography variant="subtitle1">選択したデータ点のメモ</Typography>
-                  <Typography color="text.secondary" variant="body2">
-                    {selectedPoint.label} / score {selectedPoint.score}
+                <Typography color="text.secondary" variant="body2">
+                    {selectedPoint.label} / 評価 {selectedPoint.score}
                   </Typography>
                   {selectedPoint.notes.map((note) => (
                     <Paper key={note.id} variant="outlined" sx={{ p: 2 }}>
@@ -215,7 +215,7 @@ export function ThemeDetailPage({ themeId }: ThemeDetailPageProps) {
                     >
                       <Box>
                         <Typography>
-                          score {review.score} / {formatDate(review.reviewedAt)}
+                          評価 {review.score} / {formatDate(review.reviewedAt)}
                         </Typography>
                         <Typography color="text.secondary" variant="body2">
                           {review.note || "メモなし"}
@@ -338,7 +338,7 @@ function ReviewTrendChart({
         </Box>
       </Box>
       <Typography color="text.secondary" variant="body2">
-        メモ付きの点は強調表示されます。点を選ぶと、その時点または集約期間のメモを確認できます。
+        メモ付きの点は強調表示されます。点を選ぶと、その時点または集約期間に含まれるメモだけを確認できます。
       </Typography>
     </Stack>
   );

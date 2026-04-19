@@ -40,6 +40,12 @@ export type PwaRuntimeState = BrowserCapabilities &
   PwaAvailabilityState &
   PwaAvailability;
 
+export type PwaOnboardingMessage = {
+  severity: "info" | "warning";
+  title: string;
+  body: string;
+};
+
 let cachedInstallPromptEvent: BeforeInstallPromptEvent | null = null;
 let hasRegisteredPwaListeners = false;
 const pwaListeners = new Set<() => void>();
@@ -78,6 +84,55 @@ export function derivePwaAvailability(input: PwaAvailabilityState): PwaAvailabil
     installStateLabel,
     periodicSyncStateLabel: input.periodicSyncRegistered ? "registered" : "not-registered",
     serviceWorkerStateLabel: input.serviceWorkerControlled ? "controlled" : "waiting",
+  };
+}
+
+export function getPwaOnboardingMessage(state: PwaRuntimeState): PwaOnboardingMessage {
+  if (
+    !state.serviceWorkerSupported ||
+    !state.notificationSupported ||
+    !state.periodicSyncSupported
+  ) {
+    return {
+      severity: "warning",
+      title: "この環境ではバックグラウンド通知を利用できません",
+      body:
+        "Service Worker・Notification・Periodic Sync に対応した Chromium 系ブラウザで開いてください。",
+    };
+  }
+
+  if (!state.isStandalone) {
+    return {
+      severity: "info",
+      title: "最初にアプリとしてインストールしてください",
+      body:
+        "通知導線はインストール済み PWA をアプリ表示で起動している前提です。インストール後に権限許可と periodic sync 登録へ進んでください。",
+    };
+  }
+
+  if (state.notificationPermission !== "granted") {
+    return {
+      severity: "info",
+      title: "次に通知権限を許可してください",
+      body:
+        "アプリ表示で起動できたら、Notification 権限を許可してから periodic sync を登録してください。",
+    };
+  }
+
+  if (!state.periodicSyncRegistered) {
+    return {
+      severity: "info",
+      title: "periodic sync を登録して通知判定を有効化してください",
+      body:
+        "`reflection-notification-check` を登録すると、保存済みルールに基づく check-in / review 通知判定を再利用できます。",
+    };
+  }
+
+  return {
+    severity: "info",
+    title: "通知の前提設定は完了しています",
+    body:
+      "このまま check-in / review ルールを調整し、必要なら手動チェックで表示内容を確認してください。",
   };
 }
 

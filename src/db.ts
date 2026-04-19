@@ -4,6 +4,7 @@ import {
   archiveReflectionTheme,
   createEntityId,
   createNotificationSettings,
+  findDuplicateReview,
   updateReflectionReview,
   updateNotificationSettings,
   createReflectionReview,
@@ -41,6 +42,9 @@ export const db = new PeriodicallyRetrospectivesDatabase();
 export function createNotificationSettingsPlaceholder(now = Date.now()) {
   return createNotificationSettings(undefined, now);
 }
+
+const DUPLICATE_REVIEW_ERROR =
+  "同じ記録日時の振り返りがすでにあります。既存の記録を編集してください。";
 
 async function assertNotificationSettingsExists(notificationSettingsId: string | null) {
   if (notificationSettingsId === null) {
@@ -135,6 +139,14 @@ export async function createReview(
     throw new Error("theme not found");
   }
 
+  const existingAtSameTime = await db.reviews
+    .where("[themeId+reviewedAt]")
+    .equals([input.themeId, input.reviewedAt])
+    .toArray();
+  if (findDuplicateReview(existingAtSameTime, input)) {
+    throw new Error(DUPLICATE_REVIEW_ERROR);
+  }
+
   const review = createReflectionReview(input, now);
   await db.reviews.put(review);
   return review;
@@ -152,6 +164,20 @@ export async function updateReview(
   const review = await db.reviews.get(reviewId);
   if (!review) {
     throw new Error("review not found");
+  }
+
+  const existingAtSameTime = await db.reviews
+    .where("[themeId+reviewedAt]")
+    .equals([review.themeId, input.reviewedAt])
+    .toArray();
+  if (
+    findDuplicateReview(existingAtSameTime, {
+      themeId: review.themeId,
+      reviewedAt: input.reviewedAt,
+      excludeReviewId: review.id,
+    })
+  ) {
+    throw new Error(DUPLICATE_REVIEW_ERROR);
   }
 
   const updatedReview = updateReflectionReview(review, input, now);
