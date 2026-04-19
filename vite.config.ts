@@ -2,7 +2,6 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
 export default defineConfig({
-  base: "/periodically-retrospectives/",
   plugins: [react()],
   build: {
     rollupOptions: {

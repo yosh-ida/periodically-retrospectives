@@ -25,6 +25,19 @@ run("deploy script publishes the Vite dist directory", () => {
   assert.equal(packageJson.scripts?.deploy, "gh-pages -d dist");
 });
 
-run("Vite base path matches the GitHub Pages repository path", () => {
-  assert.equal(viteConfig.base, "/periodically-retrospectives/");
+run("predeploy builds with the GitHub Pages base path only for deployment", () => {
+  const packageJson = JSON.parse(
+    readFileSync(path.join(workspaceRoot, "package.json"), "utf8"),
+  ) as {
+    scripts?: Record<string, string>;
+  };
+
+  assert.match(
+    packageJson.scripts?.predeploy ?? "",
+    /vite\.js build --base=\/periodically-retrospectives\//,
+  );
+});
+
+run("default Vite config keeps the root base path outside gh-pages deploys", () => {
+  assert.equal(viteConfig.base, undefined);
 });
