@@ -11,6 +11,10 @@ import type { ThemeInput } from "../domain.ts";
 import { navigate } from "../routes.ts";
 import { useWorkspaceStore } from "../store.ts";
 import { ThemeForm } from "../components/ThemeForm.tsx";
+import {
+  buildCreateThemeSuccessMessage,
+  validateNotificationSetupAssignment,
+} from "./themeFormMessages.ts";
 
 const emptyTheme: ThemeInput = {
   issue: "",
@@ -52,21 +56,37 @@ export function ThemeFormPage({ mode, themeId }: ThemeFormPageProps) {
     setBusy(true);
     try {
       const settings = await createNotificationSettingsReference();
-      setStatusMessage(`通知設定参照 ${settings.id} を作成して選択しました。`);
+      setStatusMessage(`通知設定参照 ${settings.id} を作成しました。`);
       return settings.id;
     } finally {
       setBusy(false);
     }
   };
 
-  const handleSubmit = async (value: ThemeInput) => {
+  const saveTheme = async (
+    value: ThemeInput,
+    options?: { continueToNotifications?: boolean },
+  ) => {
     setBusy(true);
 
     try {
       if (mode === "create") {
+        if (options?.continueToNotifications) {
+          validateNotificationSetupAssignment(value.notificationSettingsId);
+        }
+
         const theme = await createTheme(value);
-        setStatusMessage(`「${theme.issue}」を作成しました。`);
-        navigate({ name: "theme-detail", themeId: theme.id });
+        const continueToNotifications = Boolean(options?.continueToNotifications);
+
+        setStatusMessage(
+          buildCreateThemeSuccessMessage(theme.issue, continueToNotifications),
+        );
+
+        navigate(
+          continueToNotifications
+            ? { name: "theme-notifications", themeId: theme.id }
+            : { name: "theme-detail", themeId: theme.id },
+        );
         return;
       }
 
@@ -83,7 +103,7 @@ export function ThemeFormPage({ mode, themeId }: ThemeFormPageProps) {
   };
 
   if (mode === "edit" && data && !data.theme) {
-    return <Alert severity="error">対象の反省点が見つかりませんでした。</Alert>;
+    return <Alert severity="error">対象のテーマが見つかりませんでした。</Alert>;
   }
 
   return (
@@ -93,7 +113,12 @@ export function ThemeFormPage({ mode, themeId }: ThemeFormPageProps) {
         isBusy={isBusy}
         notificationSettings={data?.notificationSettings ?? []}
         onCreateNotificationReference={handleCreateNotificationReference}
-        onSubmit={handleSubmit}
+        onSubmit={(value) => saveTheme(value)}
+        onSubmitAndConfigureNotifications={
+          mode === "create"
+            ? (value) => saveTheme(value, { continueToNotifications: true })
+            : undefined
+        }
         submitLabel={mode === "create" ? "作成する" : "更新する"}
       />
     </Stack>
