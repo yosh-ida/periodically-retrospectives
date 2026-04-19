@@ -9,7 +9,10 @@ import {
   pickLatestDueNotification,
   runNotificationCheck,
 } from "../src/features/notifications/engine.ts";
-import { derivePwaAvailability } from "../src/features/notifications/runtime.ts";
+import {
+  derivePwaAvailability,
+  getPwaOnboardingMessage,
+} from "../src/features/notifications/runtime.ts";
 import {
   buildPath,
   formatRouteTitle,
@@ -298,6 +301,56 @@ run("derivePwaAvailability enables install only when the prompt is available out
       installStateLabel: "installed",
       periodicSyncStateLabel: "not-registered",
       serviceWorkerStateLabel: "waiting",
+    },
+  );
+});
+
+run("getPwaOnboardingMessage prioritizes unsupported environments", () => {
+  assert.deepEqual(
+    getPwaOnboardingMessage({
+      serviceWorkerSupported: false,
+      notificationSupported: true,
+      periodicSyncSupported: false,
+      notificationPermission: "default",
+      hasInstallPrompt: false,
+      isStandalone: false,
+      periodicSyncRegistered: false,
+      serviceWorkerControlled: false,
+      canInstall: false,
+      installStateLabel: "unavailable",
+      periodicSyncStateLabel: "not-registered",
+      serviceWorkerStateLabel: "waiting",
+    }),
+    {
+      severity: "warning",
+      title: "この環境ではバックグラウンド通知を利用できません",
+      body:
+        "Service Worker・Notification・Periodic Sync に対応した Chromium 系ブラウザで開いてください。",
+    },
+  );
+});
+
+run("getPwaOnboardingMessage guides users toward install and standalone launch", () => {
+  assert.deepEqual(
+    getPwaOnboardingMessage({
+      serviceWorkerSupported: true,
+      notificationSupported: true,
+      periodicSyncSupported: true,
+      notificationPermission: "default",
+      hasInstallPrompt: true,
+      isStandalone: false,
+      periodicSyncRegistered: false,
+      serviceWorkerControlled: true,
+      canInstall: true,
+      installStateLabel: "available",
+      periodicSyncStateLabel: "not-registered",
+      serviceWorkerStateLabel: "controlled",
+    }),
+    {
+      severity: "info",
+      title: "最初にアプリとしてインストールしてください",
+      body:
+        "通知導線はインストール済み PWA をアプリ表示で起動している前提です。インストール後に権限許可と periodic sync 登録へ進んでください。",
     },
   );
 });

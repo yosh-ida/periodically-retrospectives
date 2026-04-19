@@ -28,6 +28,12 @@ export type ReflectionReview = {
   updatedAt: number;
 };
 
+export type ReviewDuplicateCandidate = {
+  themeId: string;
+  reviewedAt: number;
+  excludeReviewId?: string;
+};
+
 export type NotificationChannel = "check-in" | "review";
 
 export type NotificationRule =
@@ -222,6 +228,21 @@ export function updateReflectionReview(
     reviewedAt: input.reviewedAt,
     updatedAt: now,
   };
+}
+
+export function findDuplicateReview(
+  reviews: ReflectionReview[],
+  candidate: ReviewDuplicateCandidate,
+): ReflectionReview | null {
+  return (
+    reviews.find((review) => {
+      if (candidate.excludeReviewId && review.id === candidate.excludeReviewId) {
+        return false;
+      }
+
+      return review.themeId === candidate.themeId && review.reviewedAt === candidate.reviewedAt;
+    }) ?? null
+  );
 }
 
 function createEmptyChannelSettings(): NotificationChannelSettings {

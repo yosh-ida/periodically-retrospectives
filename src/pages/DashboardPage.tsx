@@ -95,7 +95,7 @@ export function DashboardPage() {
       >
         <Paper variant="outlined" sx={{ p: 2.5 }}>
           <Stack spacing={1}>
-            <Typography variant="overline">Active Themes</Typography>
+            <Typography variant="overline">反省点</Typography>
             <Typography variant="h4">{summary?.themes.length ?? 0}</Typography>
             <Typography color="text.secondary" variant="body2">
               通常一覧に表示される反省点
@@ -104,7 +104,7 @@ export function DashboardPage() {
         </Paper>
         <Paper variant="outlined" sx={{ p: 2.5 }}>
           <Stack spacing={1}>
-            <Typography variant="overline">Notification References</Typography>
+            <Typography variant="overline">通知設定参照</Typography>
             <Typography variant="h4">{summary?.notificationSettings.length ?? 0}</Typography>
             <Typography color="text.secondary" variant="body2">
               テーマから参照できる通知設定
@@ -113,7 +113,7 @@ export function DashboardPage() {
         </Paper>
         <Paper variant="outlined" sx={{ p: 2.5 }}>
           <Stack spacing={1}>
-            <Typography variant="overline">Recent Reviews</Typography>
+            <Typography variant="overline">振り返り履歴</Typography>
             <Typography variant="h4">{summary?.reviews.length ?? 0}</Typography>
             <Typography color="text.secondary" variant="body2">
               7 段階評価として保存された履歴の総数
@@ -179,7 +179,7 @@ export function DashboardPage() {
                       goal={theme.goal}
                       notificationLabel={
                         linkedSettings
-                          ? `通知設定: ${linkedSettings.enabled ? "enabled" : "disabled"}`
+                          ? `通知設定: ${linkedSettings.enabled ? "有効" : "無効"}`
                           : "通知設定: 未関連"
                       }
                       reviewLabel={formatLastReview(lastReview?.reviewedAt)}
@@ -204,7 +204,7 @@ export function DashboardPage() {
                 summary.reviews.slice(0, 5).map((review) => (
                   <Paper key={review.id} variant="outlined" sx={{ p: 2 }}>
                     <Typography variant="body2">
-                      {new Date(review.reviewedAt).toLocaleString("ja-JP")} / score {review.score}
+                      {new Date(review.reviewedAt).toLocaleString("ja-JP")} / 評価 {review.score}
                     </Typography>
                     <Typography color="text.secondary" variant="body2">
                       {review.note || "メモなし"}

@@ -41,7 +41,7 @@ export function AppShell({ children, description, route, title }: AppShellProps)
               >
                 <Stack spacing={1}>
                   <Chip
-                    label="Phase 5 PWA"
+                    label="Phase 6 仕上げ"
                     color="secondary"
                     sx={{ width: "fit-content" }}
                   />

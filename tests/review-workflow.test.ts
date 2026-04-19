@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 
 import {
   createReflectionReview,
+  findDuplicateReview,
   updateReflectionReview,
 } from "../src/domain.ts";
 import {
@@ -188,4 +189,64 @@ run("aggregateReviewsForChart groups by month and keeps month order", () => {
   assert.equal(points[1].periodKey, "2026-04");
   assert.equal(points[1].score, 6);
   assert.equal(points[1].notes[0]?.note, "4月は改善の兆しがあった");
+});
+
+run("findDuplicateReview detects another review at the same timestamp for the same theme", () => {
+  const reviews = [
+    createReflectionReview(
+      {
+        themeId: "theme-1",
+        score: 4,
+        note: "",
+        reviewedAt: atUtc(2026, 4, 20, 21, 0),
+      },
+      atUtc(2026, 4, 20, 21, 1),
+    ),
+    createReflectionReview(
+      {
+        themeId: "theme-1",
+        score: 6,
+        note: "あとから別の時間に記録した",
+        reviewedAt: atUtc(2026, 4, 21, 21, 0),
+      },
+      atUtc(2026, 4, 21, 21, 1),
+    ),
+  ];
+
+  const duplicate = findDuplicateReview(reviews, {
+    themeId: "theme-1",
+    reviewedAt: atUtc(2026, 4, 20, 21, 0),
+  });
+
+  assert.equal(duplicate?.reviewedAt, atUtc(2026, 4, 20, 21, 0));
+  assert.equal(duplicate?.themeId, "theme-1");
+});
+
+run("findDuplicateReview ignores the record being edited and reviews from other themes", () => {
+  const original = createReflectionReview(
+    {
+      themeId: "theme-1",
+      score: 5,
+      note: "",
+      reviewedAt: atUtc(2026, 4, 20, 21, 0),
+    },
+    atUtc(2026, 4, 20, 21, 1),
+  );
+  const sameTimeOtherTheme = createReflectionReview(
+    {
+      themeId: "theme-2",
+      score: 3,
+      note: "",
+      reviewedAt: atUtc(2026, 4, 20, 21, 0),
+    },
+    atUtc(2026, 4, 20, 21, 2),
+  );
+
+  const duplicate = findDuplicateReview([original, sameTimeOtherTheme], {
+    themeId: "theme-1",
+    reviewedAt: atUtc(2026, 4, 20, 21, 0),
+    excludeReviewId: original.id,
+  });
+
+  assert.equal(duplicate, null);
 });

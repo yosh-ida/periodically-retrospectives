@@ -45,6 +45,12 @@ docs/
 - `design/`
   - 実装判断に必要な技術設計を責務ごとに記述する
 
+## Phase 6 仕上げメモ
+
+- duplicate review 防止、グラフ上のメモ確認、通知テスト補強は `implementation-plan.md` の Phase 6 を基準に扱う
+- 通知まわりは「インストール済み PWA をアプリとして起動している」前提を README と UI の両方で案内する
+- Phase 完了時は `npm test`、`npm run check`、`npm run build`、chrome-devtools MCP による E2E を必ず実施する
+
 ## 命名方針
 
 - ファイル名は小文字 kebab-case に統一する

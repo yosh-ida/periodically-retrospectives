@@ -157,7 +157,7 @@ export function ThemeReviewPage({ themeId }: ThemeReviewPageProps) {
               <Typography variant="h4">{data.theme.issue}</Typography>
               <Typography color="text.secondary">{data.theme.goal}</Typography>
               <Typography color="text.secondary" variant="body2">
-                その時点の達成度を 1 から 7 で記録します。必要なら過去の記録を選んで更新できます。
+                その時点の達成度を 1 から 7 で記録します。必要なら過去の記録を選んで更新でき、同じ日時の重複記録は保存時に防ぎます。
               </Typography>
             </Stack>
 
@@ -243,7 +243,7 @@ export function ThemeReviewPage({ themeId }: ThemeReviewPageProps) {
                     >
                       <Box>
                         <Typography>
-                          {new Date(review.reviewedAt).toLocaleString("ja-JP")} / score {review.score}
+                          {new Date(review.reviewedAt).toLocaleString("ja-JP")} / 評価 {review.score}
                         </Typography>
                         <Typography color="text.secondary" variant="body2">
                           {review.note || "メモなし"}
