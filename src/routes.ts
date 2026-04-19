@@ -13,6 +13,23 @@ const listeners = new Set<Listener>();
 let cachedPathname = "";
 let cachedRoute: AppRoute = { name: "dashboard" };
 
+function normalizeBasePath(basePath: string) {
+  if (!basePath || basePath === "/") {
+    return "/";
+  }
+
+  const withLeadingSlash = basePath.startsWith("/") ? basePath : `/${basePath}`;
+  return withLeadingSlash.endsWith("/") ? withLeadingSlash : `${withLeadingSlash}/`;
+}
+
+function getConfiguredBasePath() {
+  try {
+    return normalizeBasePath(import.meta.env.BASE_URL);
+  } catch {
+    return "/";
+  }
+}
+
 function normalizePathname(pathname: string) {
   if (pathname.length > 1 && pathname.endsWith("/")) {
     return pathname.slice(0, -1);
@@ -21,8 +38,44 @@ function normalizePathname(pathname: string) {
   return pathname || "/";
 }
 
-export function parseRoute(pathname: string): AppRoute {
+function stripBasePath(pathname: string, basePath: string) {
   const normalizedPathname = normalizePathname(pathname);
+  const normalizedBasePath = normalizeBasePath(basePath);
+
+  if (normalizedBasePath === "/") {
+    return normalizedPathname;
+  }
+
+  const normalizedBaseWithoutTrailingSlash = normalizedBasePath.slice(0, -1);
+  if (normalizedPathname === normalizedBaseWithoutTrailingSlash) {
+    return "/";
+  }
+
+  if (normalizedPathname.startsWith(normalizedBasePath)) {
+    const strippedPath = normalizedPathname.slice(normalizedBasePath.length - 1);
+    return normalizePathname(strippedPath);
+  }
+
+  return normalizedPathname;
+}
+
+function joinBasePath(pathname: string, basePath: string) {
+  const normalizedPathname = normalizePathname(pathname);
+  const normalizedBasePath = normalizeBasePath(basePath);
+
+  if (normalizedBasePath === "/") {
+    return normalizedPathname;
+  }
+
+  if (normalizedPathname === "/") {
+    return normalizedBasePath;
+  }
+
+  return `${normalizedBasePath}${normalizedPathname.slice(1)}`;
+}
+
+export function parseRoute(pathname: string, basePath = getConfiguredBasePath()): AppRoute {
+  const normalizedPathname = stripBasePath(pathname, basePath);
 
   if (normalizedPathname === "/") {
     return { name: "dashboard" };
@@ -69,21 +122,34 @@ export function getRouteSnapshot(pathname: string) {
   return cachedRoute;
 }
 
-export function buildPath(route: Exclude<AppRoute, { name: "not-found" }>) {
+export function buildPath(
+  route: Exclude<AppRoute, { name: "not-found" }>,
+  basePath = getConfiguredBasePath(),
+) {
+  let routePath = "/";
+
   switch (route.name) {
     case "dashboard":
-      return "/";
+      routePath = "/";
+      break;
     case "theme-new":
-      return "/themes/new";
+      routePath = "/themes/new";
+      break;
     case "theme-detail":
-      return `/themes/${encodeURIComponent(route.themeId)}`;
+      routePath = `/themes/${encodeURIComponent(route.themeId)}`;
+      break;
     case "theme-edit":
-      return `/themes/${encodeURIComponent(route.themeId)}/edit`;
+      routePath = `/themes/${encodeURIComponent(route.themeId)}/edit`;
+      break;
     case "theme-review":
-      return `/themes/${encodeURIComponent(route.themeId)}/review`;
+      routePath = `/themes/${encodeURIComponent(route.themeId)}/review`;
+      break;
     case "theme-notifications":
-      return `/themes/${encodeURIComponent(route.themeId)}/notifications`;
+      routePath = `/themes/${encodeURIComponent(route.themeId)}/notifications`;
+      break;
   }
+
+  return joinBasePath(routePath, basePath);
 }
 
 export function formatRouteTitle(route: AppRoute) {
