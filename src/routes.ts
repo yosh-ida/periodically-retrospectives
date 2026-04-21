@@ -31,6 +31,14 @@ function getConfiguredBasePath() {
 }
 
 function normalizePathname(pathname: string) {
+  if (pathname === "/index.html") {
+    return "/";
+  }
+
+  if (pathname.endsWith("/index.html")) {
+    return pathname.slice(0, -"/index.html".length) || "/";
+  }
+
   if (pathname.length > 1 && pathname.endsWith("/")) {
     return pathname.slice(0, -1);
   }

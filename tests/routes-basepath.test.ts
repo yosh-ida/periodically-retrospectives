@@ -38,3 +38,10 @@ run("buildPath prefixes GitHub Pages base paths when requested", () => {
     "/periodically-retrospectives/themes/theme-42",
   );
 });
+
+run("parseRoute treats index.html entrypoints as the dashboard", () => {
+  assert.deepEqual(parseRoute("/index.html", "/"), { name: "dashboard" });
+  assert.deepEqual(parseRoute("/periodically-retrospectives/index.html", "/periodically-retrospectives/"), {
+    name: "dashboard",
+  });
+});
