@@ -12,6 +12,7 @@ type Listener = () => void;
 const listeners = new Set<Listener>();
 let cachedPathname = "";
 let cachedRoute: AppRoute = { name: "dashboard" };
+const NOTIFICATION_PATH_PARAM = "notificationPath";
 
 function normalizeBasePath(basePath: string) {
   if (!basePath || basePath === "/") {
@@ -80,6 +81,14 @@ function joinBasePath(pathname: string, basePath: string) {
   }
 
   return `${normalizedBasePath}${normalizedPathname.slice(1)}`;
+}
+
+function toPathAndSearch(pathnameOrUrl: string) {
+  const url = new URL(pathnameOrUrl, "https://periodically-retrospectives.local");
+  return {
+    pathname: url.pathname,
+    search: url.search,
+  };
 }
 
 export function parseRoute(pathname: string, basePath = getConfiguredBasePath()): AppRoute {
@@ -158,6 +167,55 @@ export function buildPath(
   }
 
   return joinBasePath(routePath, basePath);
+}
+
+export function buildNotificationLaunchUrl(targetPath: string, basePath = getConfiguredBasePath()) {
+  const launchUrl = new URL(
+    joinBasePath("/", basePath),
+    "https://periodically-retrospectives.local",
+  );
+  const notificationPath = stripBasePath(targetPath, basePath);
+
+  if (notificationPath !== "/") {
+    launchUrl.searchParams.set(NOTIFICATION_PATH_PARAM, notificationPath);
+  }
+
+  return `${launchUrl.pathname}${launchUrl.search}`;
+}
+
+export function consumeNotificationRedirect(
+  pathnameOrUrl: string,
+  basePath = getConfiguredBasePath(),
+) {
+  const { search } = toPathAndSearch(pathnameOrUrl);
+  const searchParams = new URLSearchParams(search);
+  const notificationPath = searchParams.get(NOTIFICATION_PATH_PARAM);
+  if (!notificationPath) {
+    return null;
+  }
+
+  const route = parseRoute(notificationPath, "/");
+  if (route.name === "not-found") {
+    return null;
+  }
+
+  return buildPath(route, basePath);
+}
+
+export function applyNotificationRedirect(
+  currentLocation: Pick<Location, "pathname" | "search"> = window.location,
+  basePath = getConfiguredBasePath(),
+) {
+  const redirectedPath = consumeNotificationRedirect(
+    `${currentLocation.pathname}${currentLocation.search}`,
+    basePath,
+  );
+
+  if (redirectedPath && typeof window !== "undefined") {
+    window.history.replaceState({}, "", redirectedPath);
+  }
+
+  return redirectedPath;
 }
 
 export function formatRouteTitle(route: AppRoute) {
