@@ -1,5 +1,6 @@
 const DATABASE_NAME = "periodicallyRetrospectives";
 const PERIODIC_SYNC_TAG = "reflection-notification-check";
+const NOTIFICATION_PATH_PARAM = "notificationPath";
 const DAY_IN_MS = 86400000;
 const LAST_MINUTE_OF_DAY = 24 * 60 - 1;
 
@@ -180,6 +181,21 @@ function buildSlotId(channel, dateKey, time) {
   return `${channel}-${dateKey}T${time}`;
 }
 
+function buildNotificationLaunchUrl(pathname = "") {
+  const url = new URL(self.registration.scope);
+  const normalizedPathname = pathname
+    ? pathname.startsWith("/")
+      ? pathname
+      : `/${pathname}`
+    : "";
+
+  if (normalizedPathname && normalizedPathname !== "/") {
+    url.searchParams.set(NOTIFICATION_PATH_PARAM, normalizedPathname);
+  }
+
+  return url.toString();
+}
+
 function buildNotificationCopy(channel, theme) {
   if (channel === "check-in") {
     return {
@@ -283,8 +299,8 @@ async function runNotificationCheck(now = Date.now()) {
       data: {
         url:
           due.channel === "review"
-            ? `/themes/${encodeURIComponent(due.themeId)}/review`
-            : `/themes/${encodeURIComponent(due.themeId)}`,
+            ? buildNotificationLaunchUrl(`themes/${encodeURIComponent(due.themeId)}/review`)
+            : buildNotificationLaunchUrl(`themes/${encodeURIComponent(due.themeId)}`),
       },
     });
   }
@@ -353,7 +369,7 @@ self.addEventListener("periodicsync", (event) => {
 });
 
 self.addEventListener("notificationclick", (event) => {
-  const url = event.notification?.data?.url || "/";
+  const url = event.notification?.data?.url || buildNotificationLaunchUrl();
   event.notification.close();
 
   event.waitUntil(

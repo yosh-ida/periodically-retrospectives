@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 
-import { buildPath, parseRoute, type AppRoute } from "../src/routes.ts";
+import {
+  buildNotificationLaunchUrl,
+  consumeNotificationRedirect,
+  buildPath,
+  parseRoute,
+  type AppRoute,
+} from "../src/routes.ts";
 
 function run(name: string, fn: () => void) {
   try {
@@ -37,4 +43,40 @@ run("buildPath prefixes GitHub Pages base paths when requested", () => {
     buildPath({ name: "theme-detail", themeId: "theme-42" }, basePath),
     "/periodically-retrospectives/themes/theme-42",
   );
+});
+
+run("parseRoute treats index.html entrypoints as the dashboard", () => {
+  assert.deepEqual(parseRoute("/index.html", "/"), { name: "dashboard" });
+  assert.deepEqual(parseRoute("/periodically-retrospectives/index.html", "/periodically-retrospectives/"), {
+    name: "dashboard",
+  });
+});
+
+run("buildNotificationLaunchUrl keeps notification clicks on the app entrypoint", () => {
+  const basePath = "/periodically-retrospectives/";
+
+  assert.equal(
+    buildNotificationLaunchUrl("/themes/theme-42/review", basePath),
+    "/periodically-retrospectives/?notificationPath=%2Fthemes%2Ftheme-42%2Freview",
+  );
+});
+
+run("consumeNotificationRedirect restores a valid route from notification query params", () => {
+  const basePath = "/periodically-retrospectives/";
+  const redirected = consumeNotificationRedirect(
+    "/periodically-retrospectives/?notificationPath=%2Fthemes%2Ftheme-42%2Freview",
+    basePath,
+  );
+
+  assert.equal(redirected, "/periodically-retrospectives/themes/theme-42/review");
+});
+
+run("consumeNotificationRedirect ignores unknown notification targets", () => {
+  const basePath = "/periodically-retrospectives/";
+  const redirected = consumeNotificationRedirect(
+    "/periodically-retrospectives/?notificationPath=%2Fmissing",
+    basePath,
+  );
+
+  assert.equal(redirected, null);
 });

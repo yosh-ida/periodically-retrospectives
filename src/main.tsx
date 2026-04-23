@@ -3,11 +3,15 @@ import ReactDOM from "react-dom/client";
 import { CssBaseline, ThemeProvider, createTheme } from "@mui/material";
 import App from "./App.tsx";
 import { registerPwaLifecycleListeners } from "./features/notifications/runtime.ts";
+import { applyNotificationRedirect } from "./routes.ts";
 
 registerPwaLifecycleListeners();
+applyNotificationRedirect();
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("/service-worker.js").catch((error) => {
+  const serviceWorkerUrl = new URL("service-worker.js", new URL(import.meta.env.BASE_URL, window.location.origin));
+
+  navigator.serviceWorker.register(serviceWorkerUrl).catch((error) => {
     console.warn("Failed to register service worker", error);
   });
 }

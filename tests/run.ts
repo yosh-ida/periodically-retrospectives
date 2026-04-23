@@ -5,3 +5,4 @@ import "./notification-guard.test.ts";
 import "./deployment-config.test.ts";
 import "./routes-basepath.test.ts";
 import "./vite-base-replacement.test.ts";
+import "./pwa-subpath.test.ts";
